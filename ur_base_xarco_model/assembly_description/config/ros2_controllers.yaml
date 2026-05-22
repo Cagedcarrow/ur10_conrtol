@@ -1,0 +1,45 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 125
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      - ur10_shoulder_pan
+      - ur10_shoulder_lift
+      - ur10_elbow
+      - ur10_wrist_1
+      - ur10_wrist_2
+      - ur10_wrist_3
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: false
+    open_loop_control: false
+    constraints:
+      goal_time: 2.0
+      stopped_velocity_tolerance: 0.05
+      ur10_shoulder_pan:
+        trajectory: 2.0
+        goal: 1.0
+      ur10_shoulder_lift:
+        trajectory: 2.0
+        goal: 1.0
+      ur10_elbow:
+        trajectory: 2.0
+        goal: 1.0
+      ur10_wrist_1:
+        trajectory: 2.0
+        goal: 1.0
+      ur10_wrist_2:
+        trajectory: 7.0
+        goal: 7.0
+      ur10_wrist_3:
+        trajectory: 7.0
+        goal: 7.0

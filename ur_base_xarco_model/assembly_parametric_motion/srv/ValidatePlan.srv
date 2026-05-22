@@ -1,0 +1,10 @@
+float64 penetration_depth_mm
+float64 speed_setting
+float64 entry_angle_deg
+---
+bool success
+string message
+float64 velocity_scaling
+float64 acceleration_scaling
+float64 estimated_mass_g
+float64 cartesian_fraction

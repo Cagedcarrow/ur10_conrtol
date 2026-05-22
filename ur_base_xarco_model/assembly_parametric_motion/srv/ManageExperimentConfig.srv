@@ -1,0 +1,21 @@
+string yaml_path
+string command
+string active_experiment_id
+float64 penetration_depth_mm
+float64 speed_setting
+float64 entry_angle_deg
+string notes
+---
+bool success
+string message
+string[] experiment_ids
+string active_experiment_id
+float64 penetration_depth_mm
+float64 speed_setting
+float64 entry_angle_deg
+float64 min_depth_mm
+float64 max_depth_mm
+float64 min_speed
+float64 max_speed
+float64 min_angle_deg
+float64 max_angle_deg

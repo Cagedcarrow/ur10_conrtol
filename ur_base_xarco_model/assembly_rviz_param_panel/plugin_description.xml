@@ -1,0 +1,8 @@
+<library path="assembly_rviz_param_panel">
+  <class
+    name="assembly_rviz_param_panel/ParametricMotionPanel"
+    type="assembly_rviz_param_panel::ParametricMotionPanel"
+    base_class_type="rviz_common::Panel">
+    <description>Parametric experiment panel with Validate/Preview/Execute gating.</description>
+  </class>
+</library>

@@ -1,0 +1,39 @@
+active_experiment_id: EXP_001
+
+limits:
+  depth_mm:
+    min: 20.0
+    max: 40.0
+  speed:
+    min: 0.20
+    max: 1.00
+  angle_deg:
+    min: 20.0
+    max: 60.0
+
+planning:
+  frame: sensor_shovel_shovel_tcp
+  thresholds:
+    cartesian_fraction_min: 0.90
+
+experiments:
+  - id: EXP_001
+    penetration_depth_mm: 29.8
+    speed_setting: 0.54
+    entry_angle_deg: 34.7
+    notes: "RSM optimum candidate from response_surface_experimental_analysis.md"
+  - id: EXP_002
+    penetration_depth_mm: 30.0
+    speed_setting: 0.55
+    entry_angle_deg: 35.0
+    notes: "center-point repeat for real experiment"
+  - id: EXP_003
+    penetration_depth_mm: 25.0
+    speed_setting: 0.40
+    entry_angle_deg: 30.0
+    notes: "lower-depth lower-speed validation"
+  - id: EXP_004
+    penetration_depth_mm: 35.0
+    speed_setting: 0.70
+    entry_angle_deg: 40.0
+    notes: "upper-band robustness check"
