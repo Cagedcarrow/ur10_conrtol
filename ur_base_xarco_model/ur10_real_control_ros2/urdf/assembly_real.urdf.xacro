@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<robot name="assembly" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="ur_description_share" default="$(find ur_description)" />
+  <xacro:arg name="name" default="ur" />
+  <xacro:arg name="ur_type" default="ur10" />
+  <xacro:arg name="tf_prefix" default="" />
+  <xacro:arg name="mesh_root" default="$(find assembly_description)/urdf/meshes" />
+  <xacro:arg name="joint_limit_params" default="$(find ur10_real_control_ros2)/config/ur10/joint_limits.yaml" />
+  <xacro:arg name="kinematics_params" default="$(find ur10_real_control_ros2)/config/ur10/default_kinematics.yaml" />
+  <xacro:arg name="physical_params" default="$(find ur10_real_control_ros2)/config/ur10/physical_parameters.yaml" />
+  <xacro:arg name="visual_params" default="$(find ur10_real_control_ros2)/config/ur10/visual_parameters.yaml" />
+  <xacro:arg name="transmission_hw_interface" default="" />
+  <xacro:arg name="safety_limits" default="false" />
+  <xacro:arg name="safety_pos_margin" default="0.15" />
+  <xacro:arg name="safety_k_position" default="20" />
+  <xacro:arg name="headless_mode" default="false" />
+  <xacro:arg name="robot_ip" default="10.160.9.21" />
+  <xacro:arg name="script_filename" default="" />
+  <xacro:arg name="output_recipe_filename" default="" />
+  <xacro:arg name="input_recipe_filename" default="" />
+  <xacro:arg name="reverse_ip" default="10.160.9.100" />
+  <xacro:arg name="script_command_port" default="50004" />
+  <xacro:arg name="reverse_port" default="50001" />
+  <xacro:arg name="script_sender_port" default="50002" />
+  <xacro:arg name="trajectory_port" default="50003" />
+  <xacro:arg name="use_tool_communication" default="false" />
+  <xacro:arg name="tool_voltage" default="0" />
+  <xacro:arg name="tool_parity" default="0" />
+  <xacro:arg name="tool_baud_rate" default="115200" />
+  <xacro:arg name="tool_stop_bits" default="1" />
+  <xacro:arg name="tool_rx_idle_chars" default="1.5" />
+  <xacro:arg name="tool_tx_idle_chars" default="3.5" />
+  <xacro:arg name="tool_device_name" default="/tmp/ttyUR" />
+  <xacro:arg name="tool_tcp_port" default="54321" />
+  <xacro:arg name="use_fake_hardware" default="false" />
+  <xacro:arg name="fake_sensor_commands" default="false" />
+  <xacro:arg name="sim_gazebo" default="false" />
+  <xacro:arg name="sim_ignition" default="false" />
+  <xacro:arg name="initial_positions_file" default="$(find ur_description)/config/initial_positions.yaml" />
+
+  <xacro:include filename="$(arg ur_description_share)/urdf/ur_macro.xacro" />
+
+  <xacro:property name="initial_positions_file" value="$(arg initial_positions_file)" />
+
+  <link name="base_jizuo">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_link_world_jizuo.STL" />
+      </geometry>
+      <material name="mat_base_jizuo">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_link_world_jizuo.STL" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-1.8696 -0.046752 0.24794" rpy="0 0 0" />
+      <mass value="1499.1" />
+      <inertia ixx="1126.8" ixy="-0.036857" ixz="0.0017432" iyy="2608.5" iyz="-18.236" izz="3614.6" />
+    </inertial>
+  </link>
+
+  <link name="base_jizuo_base_ur10_with_dizuo">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_ur10_with_dizuo.STL" />
+      </geometry>
+      <material name="mat_base_ur10_with_dizuo">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_ur10_with_dizuo.STL" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0.005" rpy="0 0 0" />
+      <mass value="0.225" />
+      <inertia ixx="0.0004237" ixy="0" ixz="0" iyy="0.0004237" iyz="0" izz="0.0008437" />
+    </inertial>
+  </link>
+
+  <joint name="base_jizuo_square_place" type="fixed">
+    <parent link="base_jizuo" />
+    <child link="base_jizuo_base_ur10_with_dizuo" />
+    <origin xyz="-0.78172 -0.025653 1.1638" rpy="3.1416 0 -1.5708" />
+  </joint>
+
+  <xacro:ur_robot
+    name="$(arg name)"
+    tf_prefix="$(arg tf_prefix)"
+    parent="base_jizuo_base_ur10_with_dizuo"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)"
+    transmission_hw_interface="$(arg transmission_hw_interface)"
+    safety_limits="$(arg safety_limits)"
+    safety_pos_margin="$(arg safety_pos_margin)"
+    safety_k_position="$(arg safety_k_position)"
+    use_fake_hardware="$(arg use_fake_hardware)"
+    fake_sensor_commands="$(arg fake_sensor_commands)"
+    sim_gazebo="$(arg sim_gazebo)"
+    sim_ignition="$(arg sim_ignition)"
+    headless_mode="$(arg headless_mode)"
+    initial_positions="${xacro.load_yaml(initial_positions_file)}"
+    use_tool_communication="$(arg use_tool_communication)"
+    tool_voltage="$(arg tool_voltage)"
+    tool_parity="$(arg tool_parity)"
+    tool_baud_rate="$(arg tool_baud_rate)"
+    tool_stop_bits="$(arg tool_stop_bits)"
+    tool_rx_idle_chars="$(arg tool_rx_idle_chars)"
+    tool_tx_idle_chars="$(arg tool_tx_idle_chars)"
+    tool_device_name="$(arg tool_device_name)"
+    tool_tcp_port="$(arg tool_tcp_port)"
+    robot_ip="$(arg robot_ip)"
+    script_filename="$(arg script_filename)"
+    output_recipe_filename="$(arg output_recipe_filename)"
+    input_recipe_filename="$(arg input_recipe_filename)"
+    reverse_ip="$(arg reverse_ip)"
+    script_command_port="$(arg script_command_port)"
+    reverse_port="$(arg reverse_port)"
+    script_sender_port="$(arg script_sender_port)"
+    trajectory_port="$(arg trajectory_port)">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:ur_robot>
+
+  <link name="sensor_shovel">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_link.STL" />
+      </geometry>
+      <material name="mat_sensor_shovel">
+        <color rgba="0.79216078 0.81961176 0.92941569 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/base_link.STL" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.11585 0.0005511 0.051294" rpy="0 0 0" />
+      <mass value="2.3" />
+      <inertia ixx="0.0005331" ixy="0.0002664" ixz="0.0000158" iyy="0.0080026" iyz="0" izz="0.0082034" />
+    </inertial>
+  </link>
+
+  <link name="sensor_shovel_tcp">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/shovel_tcp.STL" />
+      </geometry>
+      <material name="mat_shovel_tcp">
+        <color rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="file://$(arg mesh_root)/shovel_tcp.STL" />
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="ur10-sensor_shovel" type="fixed">
+    <parent link="$(arg tf_prefix)tool0" />
+    <child link="sensor_shovel" />
+    <origin xyz="0 0.09 0" rpy="-1.57079632679 1.57079632679 0" />
+  </joint>
+
+  <joint name="sensor_shovel_tcp_fixed" type="fixed">
+    <parent link="sensor_shovel" />
+    <child link="sensor_shovel_tcp" />
+    <origin xyz="-0.47377 0.077109 0.0733" rpy="-1.5708 1.5708 -0.61087" />
+  </joint>
+</robot>

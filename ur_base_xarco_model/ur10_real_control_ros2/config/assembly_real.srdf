@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<robot name="assembly">
+  <group name="assembly_manipulator">
+    <chain base_link="base_link" tip_link="sensor_shovel_tcp"/>
+  </group>
+
+  <group name="shovel_eef_group">
+    <link name="sensor_shovel_tcp"/>
+  </group>
+
+  <group_state name="home" group="assembly_manipulator">
+    <joint name="shoulder_pan_joint" value="2.2038776874542236"/>
+    <joint name="shoulder_lift_joint" value="0.06395161151885986"/>
+    <joint name="elbow_joint" value="-1.7774718443499964"/>
+    <joint name="wrist_1_joint" value="-0.04721385637392217"/>
+    <joint name="wrist_2_joint" value="1.8873671293258667"/>
+    <joint name="wrist_3_joint" value="0.9308245182037354"/>
+  </group_state>
+
+  <end_effector name="shovel_eef" parent_link="tool0" group="shovel_eef_group" parent_group="assembly_manipulator"/>
+  <virtual_joint name="world_joint" type="fixed" parent_frame="world" child_link="base_jizuo"/>
+
+  <disable_collisions link1="base_jizuo" link2="base_jizuo_base_ur10_with_dizuo" reason="Adjacent"/>
+  <disable_collisions link1="base_jizuo_base_ur10_with_dizuo" link2="base_link" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="base_link_inertia" reason="Adjacent"/>
+  <disable_collisions link1="base_link" link2="shoulder_link" reason="Adjacent"/>
+  <disable_collisions link1="shoulder_link" link2="upper_arm_link" reason="Adjacent"/>
+  <disable_collisions link1="upper_arm_link" link2="forearm_link" reason="Adjacent"/>
+  <disable_collisions link1="forearm_link" link2="wrist_1_link" reason="Adjacent"/>
+  <disable_collisions link1="wrist_1_link" link2="wrist_2_link" reason="Adjacent"/>
+  <disable_collisions link1="wrist_2_link" link2="wrist_3_link" reason="Adjacent"/>
+  <disable_collisions link1="wrist_3_link" link2="flange" reason="Adjacent"/>
+  <disable_collisions link1="flange" link2="tool0" reason="Adjacent"/>
+  <disable_collisions link1="tool0" link2="sensor_shovel" reason="Adjacent"/>
+  <disable_collisions link1="sensor_shovel" link2="sensor_shovel_tcp" reason="Adjacent"/>
+
+  <disable_collisions link1="sensor_shovel" link2="base_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="base_link_inertia" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="shoulder_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="upper_arm_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="forearm_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="wrist_1_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="wrist_2_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="wrist_3_link" reason="Adjacent"/>
+  <disable_collisions link1="sensor_shovel" link2="ft_frame" reason="Never"/>
+  <disable_collisions link1="sensor_shovel" link2="flange" reason="Never"/>
+
+  <disable_collisions link1="sensor_shovel_tcp" link2="base_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="base_link_inertia" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="shoulder_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="upper_arm_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="forearm_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="wrist_1_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="wrist_2_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="wrist_3_link" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="ft_frame" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="flange" reason="Never"/>
+  <disable_collisions link1="sensor_shovel_tcp" link2="tool0" reason="Never"/>
+</robot>
