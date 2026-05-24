@@ -1,0 +1,300 @@
+[driver] START source /opt/ros/humble/setup.bash && source /home/liuxiaopeng/ws_moveit2/install/setup.bash && source /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/install/setup.bash && ros2 launch ur10_real_control_ros2 ur_driver_only.launch.py robot_ip:=10.160.9.21 reverse_ip:=10.160.9.10 ur_type:=ur10 headless_mode:=false launch_dashboard_client:=true
+[driver] [INFO] [launch]: All log files can be found below /home/liuxiaopeng/.ros/log/2026-05-24-10-11-03-047311-liuxiaopeng-Predator-PHN16-71-258989
+[driver] [INFO] [launch]: Default logging verbosity is set to INFO
+[driver] [INFO] [dashboard_client-2]: process started with pid [259044]
+[driver] [INFO] [controller_stopper_node-4]: process started with pid [259048]
+[driver] [INFO] [ur_ros2_control_node-1]: process started with pid [259042]
+[driver] [INFO] [robot_state_helper-3]: process started with pid [259046]
+[driver] [INFO] [urscript_interface-5]: process started with pid [259050]
+[driver] [INFO] [robot_state_publisher-6]: process started with pid [259052]
+[driver] [INFO] [trajectory_until_node-7]: process started with pid [259054]
+[driver] [INFO] [spawner-8]: process started with pid [259056]
+[driver] [INFO] [spawner-9]: process started with pid [259058]
+[driver] [robot_state_publisher-6] [WARN] [1779588663.310858659] [kdl_parser]: The root link base_jizuo has an inertia specified in the URDF, but KDL does not support a root link with an inertia.  As a workaround, you can add an extra dummy link to your URDF.
+[driver] [robot_state_publisher-6] [INFO] [1779588663.310969149] [robot_state_publisher]: got segment base
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311011618] [robot_state_publisher]: got segment base_jizuo
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311015980] [robot_state_publisher]: got segment base_jizuo_base_ur10_with_dizuo
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311020036] [robot_state_publisher]: got segment base_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311022973] [robot_state_publisher]: got segment base_link_inertia
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311025241] [robot_state_publisher]: got segment flange
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311027319] [robot_state_publisher]: got segment forearm_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311029412] [robot_state_publisher]: got segment ft_frame
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311032691] [robot_state_publisher]: got segment sensor_shovel
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311039769] [robot_state_publisher]: got segment sensor_shovel_tcp
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311043247] [robot_state_publisher]: got segment shoulder_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311046836] [robot_state_publisher]: got segment tool0
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311050349] [robot_state_publisher]: got segment upper_arm_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311053662] [robot_state_publisher]: got segment wrist_1_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311057091] [robot_state_publisher]: got segment wrist_2_link
+[driver] [robot_state_publisher-6] [INFO] [1779588663.311059363] [robot_state_publisher]: got segment wrist_3_link
+[driver] [dashboard_client-2] [0m[INFO] [1779588663.315998420] [UR_Client_Library:]: Starting primary client pipeline[0m
+[driver] [controller_stopper_node-4] [0m[INFO] [1779588663.323362637] [Controller stopper]: Waiting for switch controller service to come up on controller_manager/switch_controller[0m
+[driver] [ur_ros2_control_node-1] [WARN] [1779588663.332676366] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[driver] [ur_ros2_control_node-1] text not specified in the tf_prefix tag
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.333237304] [resource_manager]: Loading hardware 'ur10'
+[driver] [robot_state_helper-3] [INFO] [1779588663.333474464] [UR_Client_Library:]: Starting primary client pipeline
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.339928628] [resource_manager]: Initialize hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.340045075] [resource_manager]: Successful initialization of hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.340322260] [resource_manager]: 'configure' hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.340336701] [URPositionHardwareInterface]: Starting ...please wait...
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.340351579] [URPositionHardwareInterface]: Initializing driver...
+[driver] [controller_stopper_node-4] [0m[INFO] [1779588663.355654550] [Controller stopper]: Service available[0m
+[driver] [controller_stopper_node-4] [0m[INFO] [1779588663.355700194] [Controller stopper]: Waiting for list controllers service to come up on controller_manager/list_controllers[0m
+[driver] [controller_stopper_node-4] [0m[INFO] [1779588663.355722866] [Controller stopper]: Service available[0m
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.429771095] [UR_Client_Library:]: Negotiated RTDE protocol version to 2.
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.429914196] [UR_Client_Library:]: Received URControl version 3.15.8.0
+[driver] [ur_ros2_control_node-1] [INFO] [1779588663.429927771] [UR_Client_Library:]: Setting up RTDE communication with frequency 125.000000
+[driver] [ur_ros2_control_node-1] [ERROR] [1779588663.436427106] [UR_Client_Library:]: Caught exception Variable 'speed_slider_mask' is currently controlled by another RTDE client. The input recipe can't be used as configured. Note: when using a fieldbus (e.g. Ethernet/IP or Modbus), all outputs are claimed by those., while trying to setup RTDE inputs.
+[driver] [ur_ros2_control_node-1] [ERROR] [1779588663.436475881] [UR_Client_Library:]: Failed to initialize RTDE client, retrying in 5 seconds
+[driver] [spawner-9] [INFO] [1779588663.537549978] [spawner_joint_trajectory_controller]: waiting for service /controller_manager/list_controllers to become available...
+[driver] [spawner-8] [INFO] [1779588663.545076602] [spawner_joint_state_broadcaster]: [94mLoaded [1mjoint_state_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.569603060] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mjoint_state_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.585661917] [spawner_joint_state_broadcaster]: [94mLoaded [1mio_and_status_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.609734424] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mio_and_status_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.617807314] [spawner_joint_state_broadcaster]: [94mLoaded [1mspeed_scaling_state_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.641446029] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mspeed_scaling_state_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.657701360] [spawner_joint_state_broadcaster]: [94mLoaded [1mforce_torque_sensor_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.681686530] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mforce_torque_sensor_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.698472237] [spawner_joint_state_broadcaster]: [94mLoaded [1mtcp_pose_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.722585551] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mtcp_pose_broadcaster[0m
+[driver] [spawner-8] [INFO] [1779588663.746268524] [spawner_joint_state_broadcaster]: [94mLoaded [1mur_configuration_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.770659254] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mur_configuration_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.802085636] [spawner_joint_state_broadcaster]: [94mLoaded [1mfriction_model_controller[0m
+[driver] [dashboard_client-2] [0m[INFO] [1779588663.810070369] [dashboard_client]: Connecting to Dashboard Server at 10.160.9.21 with policy G5[0m
+[driver] [dashboard_client-2] [0m[INFO] [1779588663.810269307] [UR_Client_Library:]: DashboardClient created for host 10.160.9.21[0m
+[driver] [dashboard_client-2] [0m[INFO] [1779588663.810961446] [UR_Client_Library:]: Connected: Universal Robots Dashboard Server
+[driver] [dashboard_client-2] [0m
+[driver] [dashboard_client-2] [0m[INFO] [1779588663.817910076] [dashboard_client]: Successfully connected to Dashboard Server at 10.160.9.21. Robot has version 3.15.8.0[0m
+[driver] [spawner-8] [INFO] [1779588663.826992703] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mfriction_model_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.890236724] [spawner_joint_state_broadcaster]: [94mLoaded [1mscaled_joint_trajectory_controller[0m
+[driver] [spawner-8] [INFO] [1779588663.930574912] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mscaled_joint_trajectory_controller[0m
+[driver] [INFO] [spawner-8]: process has finished cleanly [pid 259056]
+[driver] [robot_state_helper-3] [INFO] [1779588664.402203775] [robot_state_helper]: The robot is currently in mode RUNNING.
+[driver] [robot_state_helper-3] [INFO] [1779588664.403371551] [robot_state_helper]: The robot is currently in safety mode NORMAL.
+[driver] [spawner-9] [INFO] [1779588666.601818641] [spawner_joint_trajectory_controller]: [94mLoaded [1mjoint_trajectory_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.650823330] [spawner_joint_trajectory_controller]: [94mLoaded [1mforward_velocity_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.690619531] [spawner_joint_trajectory_controller]: [94mLoaded [1mforward_position_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.730963119] [spawner_joint_trajectory_controller]: [94mLoaded [1mforward_effort_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.770492021] [spawner_joint_trajectory_controller]: [94mLoaded [1mforce_mode_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.801707666] [spawner_joint_trajectory_controller]: [94mLoaded [1mpassthrough_trajectory_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.834169628] [spawner_joint_trajectory_controller]: [94mLoaded [1mfreedrive_mode_controller[0m
+[driver] [spawner-9] [INFO] [1779588666.875210242] [spawner_joint_trajectory_controller]: [94mLoaded [1mtool_contact_controller[0m
+[driver] [INFO] [spawner-9]: process has finished cleanly [pid 259058]
+[driver] [ur_ros2_control_node-1] [INFO] [1779588668.825145707] [UR_Client_Library:]: Negotiated RTDE protocol version to 2.
+[driver] [ur_ros2_control_node-1] [INFO] [1779588668.825465105] [UR_Client_Library:]: Received URControl version 3.15.8.0
+[driver] [ur_ros2_control_node-1] [INFO] [1779588668.825513015] [UR_Client_Library:]: Setting up RTDE communication with frequency 125.000000
+[driver] [ur_ros2_control_node-1] [ERROR] [1779588668.832415983] [UR_Client_Library:]: Caught exception Variable 'speed_slider_mask' is currently controlled by another RTDE client. The input recipe can't be used as configured. Note: when using a fieldbus (e.g. Ethernet/IP or Modbus), all outputs are claimed by those., while trying to setup RTDE inputs.
+[driver] [ur_ros2_control_node-1] [ERROR] [1779588668.832554080] [UR_Client_Library:]: Failed to initialize RTDE client, retrying in 5 seconds
+[driver] [ur_ros2_control_node-1] [INFO] [1779588674.382349061] [UR_Client_Library:]: Negotiated RTDE protocol version to 2.
+[driver] [ur_ros2_control_node-1] [INFO] [1779588674.382500059] [UR_Client_Library:]: Received URControl version 3.15.8.0
+[driver] [ur_ros2_control_node-1] [INFO] [1779588674.382506283] [UR_Client_Library:]: Setting up RTDE communication with frequency 125.000000
+[driver] [ur_ros2_control_node-1] [ERROR] [1779588674.389682565] [UR_Client_Library:]: Caught exception Variable 'speed_slider_mask' is currently controlled by another RTDE client. The input recipe can't be used as configured. Note: when using a fieldbus (e.g. Ethernet/IP or Modbus), all outputs are claimed by those., while trying to setup RTDE inputs.
+[driver] [ur_ros2_control_node-1] [INFO] [1779588674.389802613] [UR_Client_Library:]: Stopping primary client pipeline
+[driver] [ur_ros2_control_node-1] [FATAL] [1779588674.389835553] [URPositionHardwareInterface]: Failed to initialize RTDE client after 3 attempts
+[driver] [ur_ros2_control_node-1] [INFO] [1779588674.389852119] [resource_manager]: Failed to 'configure' hardware 'ur10'
+[driver] [ur_ros2_control_node-1] terminate called after throwing an instance of 'std::runtime_error'
+[driver] [ur_ros2_control_node-1]   what():  Failed to set the initial state of the component : ur10 to active
+[driver] [ur_ros2_control_node-1] Stack trace (most recent call last):
+[driver] [ur_ros2_control_node-1] #13   Object "", at 0xffffffffffffffff, in
+[driver] [ur_ros2_control_node-1] #12   Object "/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node", at 0x6476d4782bc4, in
+[driver] [ur_ros2_control_node-1] #11   Source "../csu/libc-start.c", line 392, in __libc_start_main_impl [0x70d48e629e3f]
+[driver] [ur_ros2_control_node-1] #10   Source "../sysdeps/nptl/libc_start_call_main.h", line 58, in __libc_start_call_main [0x70d48e629d8f]
+[driver] [ur_ros2_control_node-1] #9    Object "/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node", at 0x6476d4782853, in
+[driver] [ur_ros2_control_node-1] #8    Object "/opt/ros/humble/lib/libcontroller_manager.so", at 0x70d48ef3048a, in controller_manager::ControllerManager::ControllerManager(std::shared_ptr<rclcpp::Executor>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, rclcpp::NodeOptions const&)
+[driver] [ur_ros2_control_node-1] #7    Object "/opt/ros/humble/lib/libcontroller_manager.so", at 0x70d48ef1634c, in
+[driver] [ur_ros2_control_node-1] #6    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x70d48eaae4d7, in __cxa_throw
+[driver] [ur_ros2_control_node-1] #5    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x70d48eaae276, in std::terminate()
+[driver] [ur_ros2_control_node-1] #4    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x70d48eaae20b, in
+[driver] [ur_ros2_control_node-1] #3    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x70d48eaa2b9d, in
+[driver] [ur_ros2_control_node-1] #2    Source "./stdlib/abort.c", line 79, in abort [0x70d48e6287f2]
+[driver] [ur_ros2_control_node-1] #1    Source "../sysdeps/posix/raise.c", line 26, in raise [0x70d48e642475]
+[driver] [ur_ros2_control_node-1] #0  | Source "./nptl/pthread_kill.c", line 89, in __pthread_kill_internal
+[driver] [ur_ros2_control_node-1]     | Source "./nptl/pthread_kill.c", line 78, in __pthread_kill_implementation
+[driver] [ur_ros2_control_node-1]       Source "./nptl/pthread_kill.c", line 44, in __pthread_kill [0x70d48e6969fc]
+[driver] [ur_ros2_control_node-1] Aborted (Signal sent by tkill() 259042 1000)
+[driver] [ERROR] [ur_ros2_control_node-1]: process has died [pid 259042, exit code -6, cmd '/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node --ros-args --params-file /tmp/launch_params__ak63cgu --params-file /opt/ros/humble/share/ur_robot_driver/config/ur10_update_rate.yaml --params-file /tmp/launch_params_b366nohj'].
+[driver] [controller_stopper_node-4] [31m[ERROR] [1779588685.522470894] [Controller stopper]: Could not activate requested controllers[0m
+[preflight] START source /opt/ros/humble/setup.bash && source /home/liuxiaopeng/ws_moveit2/install/setup.bash && source /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/install/setup.bash && ROBOT_IP=10.160.9.21 ros2 run ur10_real_control_ros2 check_real_ur10_ready.sh 10.160.9.21
+[preflight] === UR10 REAL READY CHECK START ===
+[preflight] ROBOT_IP=10.160.9.21
+[preflight] ROBOT_PING_OK
+[preflight] === PORT LISTENERS 50001-50004 ===
+[preflight] LISTEN 0      1            0.0.0.0:50004      0.0.0.0:*    users:(("ur_ros2_control",pid=256545,fd=24))
+[preflight] LISTEN 0      1            0.0.0.0:50001      0.0.0.0:*    users:(("ur_ros2_control",pid=256545,fd=22))
+[preflight] LISTEN 0      1            0.0.0.0:50003      0.0.0.0:*    users:(("ur_ros2_control",pid=256545,fd=23))
+[preflight] LISTEN 0      1            0.0.0.0:50002      0.0.0.0:*    users:(("ur_ros2_control",pid=256545,fd=26))
+[preflight] === JOINT STATES ===
+[preflight] Type: sensor_msgs/msg/JointState
+[preflight] 
+[preflight] Publisher count: 1
+[preflight] 
+[preflight] Node name: joint_state_broadcaster
+[preflight] Node namespace: /
+[preflight] Topic type: sensor_msgs/msg/JointState
+[preflight] Endpoint type: PUBLISHER
+[preflight] GID: 01.0f.c1.a4.21.ea.7a.dc.00.00.00.00.00.00.36.03.00.00.00.00.00.00.00.00
+[preflight] QoS profile:
+[preflight]   Reliability: RELIABLE
+[preflight]   History (Depth): UNKNOWN
+[preflight]   Durability: TRANSIENT_LOCAL
+[preflight]   Lifespan: Infinite
+[preflight]   Deadline: Infinite
+[preflight]   Liveliness: AUTOMATIC
+[preflight]   Liveliness lease duration: Infinite
+[preflight] 
+[preflight] Subscription count: 3
+[preflight] 
+[preflight] Node name: robot_state_publisher
+[preflight] Node namespace: /
+[preflight] Topic type: sensor_msgs/msg/JointState
+[preflight] Endpoint type: SUBSCRIPTION
+[preflight] GID: 01.0f.c1.a4.2b.ea.92.8a.00.00.00.00.00.00.15.04.00.00.00.00.00.00.00.00
+[preflight] QoS profile:
+[preflight]   Reliability: BEST_EFFORT
+[preflight]   History (Depth): UNKNOWN
+[preflight]   Durability: VOLATILE
+[preflight]   Lifespan: Infinite
+[preflight]   Deadline: Infinite
+[preflight]   Liveliness: AUTOMATIC
+[preflight]   Liveliness lease duration: Infinite
+[preflight] 
+[preflight] Node name: _NODE_NAME_UNKNOWN_
+[preflight] Node namespace: _NODE_NAMESPACE_UNKNOWN_
+[preflight] Topic type: sensor_msgs/msg/JointState
+[preflight] Endpoint type: SUBSCRIPTION
+[preflight] GID: 01.0f.c1.a4.57.d8.89.80.00.00.00.00.00.00.15.04.00.00.00.00.00.00.00.00
+[preflight] QoS profile:
+[preflight]   Reliability: BEST_EFFORT
+[preflight]   History (Depth): UNKNOWN
+[preflight]   Durability: VOLATILE
+[preflight]   Lifespan: Infinite
+[preflight]   Deadline: Infinite
+[preflight]   Liveliness: AUTOMATIC
+[preflight]   Liveliness lease duration: Infinite
+[preflight] 
+[preflight] Node name: robot_state_publisher
+[preflight] Node namespace: /
+[preflight] Topic type: sensor_msgs/msg/JointState
+[preflight] Endpoint type: SUBSCRIPTION
+[preflight] GID: 01.0f.c1.a4.ec.f3.56.cf.00.00.00.00.00.00.15.04.00.00.00.00.00.00.00.00
+[preflight] QoS profile:
+[preflight]   Reliability: BEST_EFFORT
+[preflight]   History (Depth): UNKNOWN
+[preflight]   Durability: VOLATILE
+[preflight]   Lifespan: Infinite
+[preflight]   Deadline: Infinite
+[preflight]   Liveliness: AUTOMATIC
+[preflight]   Liveliness lease duration: Infinite
+[preflight] 
+[preflight] A message was lost!!!
+[preflight] 	total count change:1
+[preflight] 	total count: 1---
+[preflight] header:
+[preflight]   stamp:
+[preflight]     sec: 1779588694
+[preflight]     nanosec: 273021327
+[preflight]   frame_id: base_link
+[preflight] name:
+[preflight] - shoulder_lift_joint
+[preflight] - elbow_joint
+[preflight] - wrist_1_joint
+[preflight] - wrist_2_joint
+[preflight] - wrist_3_joint
+[preflight] - shoulder_pan_joint
+[preflight] position:
+[preflight] - 0.04037296772003174
+[preflight] - -2.394099299107687
+[preflight] - 0.04923450946807861
+[preflight] - 2.8362643718719482
+[preflight] - 1.1933748722076416
+[preflight] - 1.449426531791687
+[preflight] velocity:
+[preflight] - 0.0
+[preflight] - -0.0
+[preflight] - 0.0
+[preflight] - 0.0
+[preflight] - 0.0
+[preflight] - 0.0
+[preflight] effort:
+[preflight] - 3.717041492462158
+[preflight] - -2.302339553833008
+[preflight] - 0.3162689507007599
+[preflight] - 0.2220611870288849
+[preflight] - -0.0358886756002903
+[preflight] - -0.3845215141773224
+[preflight] ---
+[preflight] JOINT_STATES_OK
+[preflight] === ROS NODES ===
+[preflight] /controller_manager
+[preflight] /controller_stopper
+[preflight] /controller_stopper
+[preflight] /controller_stopper
+[preflight] /dashboard_client
+[preflight] /dashboard_client
+[preflight] /dashboard_client
+[preflight] /force_mode_controller
+[preflight] /force_torque_sensor_broadcaster
+[preflight] /forward_effort_controller
+[preflight] /forward_position_controller
+[preflight] /forward_velocity_controller
+[preflight] /freedrive_mode_controller
+[preflight] /friction_model_controller
+[preflight] /io_and_status_controller
+[preflight] /joint_state_broadcaster
+[preflight] /joint_trajectory_controller
+[preflight] /passthrough_trajectory_controller
+[preflight] /robot_state_publisher
+[preflight] /robot_state_publisher
+[preflight] /robot_state_publisher
+[preflight] /scaled_joint_trajectory_controller
+[preflight] /speed_scaling_state_broadcaster
+[preflight] /tcp_pose_broadcaster
+[preflight] /tool_contact_controller
+[preflight] /trajectory_until_node
+[preflight] /trajectory_until_node
+[preflight] /trajectory_until_node
+[preflight] /transform_listener_impl_7597cc025c00
+[preflight] /ur_configuration_controller
+[preflight] /ur_robot_state_helper
+[preflight] /ur_robot_state_helper
+[preflight] /ur_robot_state_helper
+[preflight] /urscript_interface
+[preflight] /urscript_interface
+[preflight] /urscript_interface
+[preflight] === CONTROLLERS ===
+[preflight] [92mjoint_state_broadcaster           [0m joint_state_broadcaster/JointStateBroadcaster                 [92mactive  [0m
+[preflight] [92mio_and_status_controller          [0m ur_controllers/GPIOController                                 [92mactive  [0m
+[preflight] [92mspeed_scaling_state_broadcaster   [0m ur_controllers/SpeedScalingStateBroadcaster                   [92mactive  [0m
+[preflight] [92mforce_torque_sensor_broadcaster   [0m force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  [92mactive  [0m
+[preflight] [92mtcp_pose_broadcaster              [0m pose_broadcaster/PoseBroadcaster                              [92mactive  [0m
+[preflight] [92mur_configuration_controller       [0m ur_controllers/URConfigurationController                      [92mactive  [0m
+[preflight] [92mfriction_model_controller         [0m ur_controllers/FrictionModelController                        [92mactive  [0m
+[preflight] [92mscaled_joint_trajectory_controller[0m ur_controllers/ScaledJointTrajectoryController                [92mactive  [0m
+[preflight] [96mjoint_trajectory_controller       [0m joint_trajectory_controller/JointTrajectoryController         [96minactive[0m
+[preflight] [96mforward_velocity_controller       [0m velocity_controllers/JointGroupVelocityController             [96minactive[0m
+[preflight] [96mforward_position_controller       [0m position_controllers/JointGroupPositionController             [96minactive[0m
+[preflight] [96mforward_effort_controller         [0m effort_controllers/JointGroupEffortController                 [96minactive[0m
+[preflight] [96mforce_mode_controller             [0m ur_controllers/ForceModeController                            [96minactive[0m
+[preflight] [96mpassthrough_trajectory_controller [0m ur_controllers/PassthroughTrajectoryController                [96minactive[0m
+[preflight] [96mfreedrive_mode_controller         [0m ur_controllers/FreedriveModeController                        [96minactive[0m
+[preflight] [96mtool_contact_controller           [0m ur_controllers/ToolContactController                          [96minactive[0m
+[preflight] === ACTIONS ===
+[preflight] /joint_trajectory_controller/follow_joint_trajectory
+[preflight] /passthrough_trajectory_controller/follow_joint_trajectory
+[preflight] /scaled_joint_trajectory_controller/follow_joint_trajectory
+[preflight] SCALED_CONTROLLER_ACTIVE
+[preflight] EXEC_ACTION_ONLINE
+[preflight] SPEED_SCALING_TOPIC=/speed_scaling_state_broadcaster/speed_scaling
+[preflight] A message was lost!!!
+[preflight] 	total count change:1
+[preflight] 	total count: 1---
+[preflight] data: 100.0
+[preflight] ---
+[preflight] SPEED_SCALING_NONZERO
+[preflight] === POSSIBLE RTDE CONFLICT PROCESSES ===
+[preflight] NO_EXTRA_RTDE_CLIENT
+[preflight] === RECENT RTDE OVERFLOW CHECK ===
+[preflight] RTDE_OK
+[preflight] === UR10 REAL READY CHECK END ===
+[preflight] EXIT code=0
+[gui] running processes exist: driver

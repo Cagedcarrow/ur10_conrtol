@@ -1,0 +1,97 @@
+[cleanup] START source /opt/ros/humble/setup.bash && source /home/liuxiaopeng/ws_moveit2/install/setup.bash && source /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/install/setup.bash && ros2 run ur10_real_control_ros2 cleanup_real_control_processes.sh
+[cleanup] === CLEANUP START ===
+[cleanup] [MATCH] ros2 launch ur10_real_control_ros2 ur_driver_only.launch.py
+[cleanup] 265069 /usr/bin/python3 /opt/ros/humble/bin/ros2 launch ur10_real_control_ros2 ur_driver_only.launch.py robot_ip:=10.160.9.21 reverse_ip:=10.160.9.10 ur_type:=ur10 headless_mode:=false launch_dashboard_client:=true
+[cleanup] [MATCH] dashboard_client
+[cleanup] 265119 /opt/ros/humble/lib/ur_robot_driver/dashboard_client --ros-args -r __node:=dashboard_client --params-file /tmp/launch_params_bik7wemt --params-file /tmp/launch_params_ee3cz7hg
+[cleanup] [MATCH] controller_stopper
+[cleanup] 265123 /opt/ros/humble/lib/ur_robot_driver/controller_stopper_node --ros-args -r __node:=controller_stopper --params-file /tmp/launch_params_44u_xrjm --params-file /tmp/launch_params_riszcm0w --params-file /tmp/launch_params_gv8pzg8m
+[cleanup] [MATCH] robot_state_helper
+[cleanup] 265121 /opt/ros/humble/lib/ur_robot_driver/robot_state_helper --ros-args -r __node:=ur_robot_state_helper --params-file /tmp/launch_params_nr5bhwwh --params-file /tmp/launch_params_5ehe2jf6
+[cleanup] [MATCH] urscript_interface
+[cleanup] 265125 /opt/ros/humble/lib/ur_robot_driver/urscript_interface --ros-args --params-file /tmp/launch_params_7q_6xes6
+[cleanup] [MATCH] trajectory_until_node
+[cleanup] 265129 /opt/ros/humble/lib/ur_robot_driver/trajectory_until_node --ros-args -r __node:=trajectory_until_node --params-file /tmp/launch_params_gt6t7nc5
+[cleanup] [MATCH] robot_state_publisher
+[cleanup] 265127 /opt/ros/humble/lib/robot_state_publisher/robot_state_publisher --ros-args --params-file /tmp/launch_params_rcj24j4h
+[cleanup] === CLEANUP END ===
+[cleanup] EXIT code=0
+[driver] START source /opt/ros/humble/setup.bash && source /home/liuxiaopeng/ws_moveit2/install/setup.bash && source /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/install/setup.bash && ros2 launch ur10_real_control_ros2 ur_driver_only.launch.py robot_ip:=10.160.9.21 reverse_ip:=10.160.9.10 ur_type:=ur10 headless_mode:=false launch_dashboard_client:=true
+[driver] [INFO] [launch]: All log files can be found below /home/liuxiaopeng/.ros/log/2026-05-24-10-21-32-645651-liuxiaopeng-Predator-PHN16-71-265676
+[driver] [INFO] [launch]: Default logging verbosity is set to INFO
+[driver] [INFO] [dashboard_client-2]: process started with pid [265726]
+[driver] [INFO] [controller_stopper_node-4]: process started with pid [265730]
+[driver] [INFO] [ur_ros2_control_node-1]: process started with pid [265724]
+[driver] [INFO] [robot_state_helper-3]: process started with pid [265728]
+[driver] [INFO] [urscript_interface-5]: process started with pid [265732]
+[driver] [INFO] [robot_state_publisher-6]: process started with pid [265734]
+[driver] [INFO] [trajectory_until_node-7]: process started with pid [265736]
+[driver] [INFO] [spawner-8]: process started with pid [265738]
+[driver] [INFO] [spawner-9]: process started with pid [265740]
+[driver] [robot_state_publisher-6] [WARN] [1779589292.899810916] [kdl_parser]: The root link base_jizuo has an inertia specified in the URDF, but KDL does not support a root link with an inertia.  As a workaround, you can add an extra dummy link to your URDF.
+[driver] [robot_state_publisher-6] [INFO] [1779589292.899932489] [robot_state_publisher]: got segment base
+[driver] [robot_state_publisher-6] [INFO] [1779589292.899985875] [robot_state_publisher]: got segment base_jizuo
+[driver] [robot_state_publisher-6] [INFO] [1779589292.899995791] [robot_state_publisher]: got segment base_jizuo_base_ur10_with_dizuo
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900003090] [robot_state_publisher]: got segment base_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900009842] [robot_state_publisher]: got segment base_link_inertia
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900016267] [robot_state_publisher]: got segment flange
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900022721] [robot_state_publisher]: got segment forearm_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900029220] [robot_state_publisher]: got segment ft_frame
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900035532] [robot_state_publisher]: got segment sensor_shovel
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900041913] [robot_state_publisher]: got segment sensor_shovel_tcp
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900048227] [robot_state_publisher]: got segment shoulder_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900054735] [robot_state_publisher]: got segment tool0
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900061253] [robot_state_publisher]: got segment upper_arm_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900067297] [robot_state_publisher]: got segment wrist_1_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900073727] [robot_state_publisher]: got segment wrist_2_link
+[driver] [robot_state_publisher-6] [INFO] [1779589292.900079955] [robot_state_publisher]: got segment wrist_3_link
+[driver] [dashboard_client-2] [0m[INFO] [1779589292.906009841] [UR_Client_Library:]: Starting primary client pipeline[0m
+[driver] [controller_stopper_node-4] [0m[INFO] [1779589292.908625294] [Controller stopper]: Waiting for switch controller service to come up on controller_manager/switch_controller[0m
+[driver] [robot_state_helper-3] [INFO] [1779589292.909036297] [UR_Client_Library:]: Starting primary client pipeline
+[driver] [ur_ros2_control_node-1] [WARN] [1779589292.913527027] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[driver] [ur_ros2_control_node-1] text not specified in the tf_prefix tag
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.913864265] [resource_manager]: Loading hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.916629301] [resource_manager]: Initialize hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.916685794] [resource_manager]: Successful initialization of hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.916855794] [resource_manager]: 'configure' hardware 'ur10'
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.916860813] [URPositionHardwareInterface]: Starting ...please wait...
+[driver] [ur_ros2_control_node-1] [INFO] [1779589292.916868226] [URPositionHardwareInterface]: Initializing driver...
+[driver] [dashboard_client-2] [0m[INFO] [1779589292.991507967] [dashboard_client]: Connecting to Dashboard Server at 10.160.9.21 with policy G5[0m
+[driver] [dashboard_client-2] [0m[INFO] [1779589292.991575815] [UR_Client_Library:]: DashboardClient created for host 10.160.9.21[0m
+[driver] [dashboard_client-2] [0m[INFO] [1779589292.992242952] [UR_Client_Library:]: Connected: Universal Robots Dashboard Server
+[driver] [dashboard_client-2] [0m
+[driver] [dashboard_client-2] [0m[INFO] [1779589292.995230943] [dashboard_client]: Successfully connected to Dashboard Server at 10.160.9.21. Robot has version 3.15.8.0[0m
+[driver] [ur_ros2_control_node-1] [INFO] [1779589293.009979506] [UR_Client_Library:]: Negotiated RTDE protocol version to 2.
+[driver] [ur_ros2_control_node-1] [INFO] [1779589293.010135648] [UR_Client_Library:]: Received URControl version 3.15.8.0
+[driver] [ur_ros2_control_node-1] [INFO] [1779589293.010157766] [UR_Client_Library:]: Setting up RTDE communication with frequency 125.000000
+[driver] [ur_ros2_control_node-1] [INFO] [1779589293.017353235] [UR_Client_Library:]: Starting primary client pipeline
+[driver] [spawner-9] [INFO] [1779589293.448719962] [spawner_joint_trajectory_controller]: waiting for service /controller_manager/list_controllers to become available...
+[driver] [spawner-8] [INFO] [1779589293.452931690] [spawner_joint_state_broadcaster]: waiting for service /controller_manager/list_controllers to become available...
+[driver] [ur_ros2_control_node-1] [INFO] [1779589294.022488534] [UR_Client_Library:]: Stopping primary client pipeline
+[driver] [ur_ros2_control_node-1] [FATAL] [1779589294.095456046] [URPositionHardwareInterface]: Could not get configuration package within timeout, are you connected to the robot?(Configured timeout: 1 sec)
+[driver] [ur_ros2_control_node-1] [INFO] [1779589294.095513275] [resource_manager]: Failed to 'configure' hardware 'ur10'
+[driver] [ur_ros2_control_node-1] terminate called after throwing an instance of 'std::runtime_error'
+[driver] [ur_ros2_control_node-1]   what():  Failed to set the initial state of the component : ur10 to active
+[driver] [ur_ros2_control_node-1] Stack trace (most recent call last):
+[driver] [ur_ros2_control_node-1] #13   Object "", at 0xffffffffffffffff, in
+[driver] [ur_ros2_control_node-1] #12   Object "/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node", at 0x57bc698edbc4, in
+[driver] [ur_ros2_control_node-1] #11   Source "../csu/libc-start.c", line 392, in __libc_start_main_impl [0x77c045429e3f]
+[driver] [ur_ros2_control_node-1] #10   Source "../sysdeps/nptl/libc_start_call_main.h", line 58, in __libc_start_call_main [0x77c045429d8f]
+[driver] [ur_ros2_control_node-1] #9    Object "/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node", at 0x57bc698ed853, in
+[driver] [ur_ros2_control_node-1] #8    Object "/opt/ros/humble/lib/libcontroller_manager.so", at 0x77c045efd48a, in controller_manager::ControllerManager::ControllerManager(std::shared_ptr<rclcpp::Executor>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, rclcpp::NodeOptions const&)
+[driver] [ur_ros2_control_node-1] #7    Object "/opt/ros/humble/lib/libcontroller_manager.so", at 0x77c045ee334c, in
+[driver] [ur_ros2_control_node-1] #6    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x77c0458ae4d7, in __cxa_throw
+[driver] [ur_ros2_control_node-1] #5    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x77c0458ae276, in std::terminate()
+[driver] [ur_ros2_control_node-1] #4    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x77c0458ae20b, in
+[driver] [ur_ros2_control_node-1] #3    Object "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30", at 0x77c0458a2b9d, in
+[driver] [ur_ros2_control_node-1] #2    Source "./stdlib/abort.c", line 79, in abort [0x77c0454287f2]
+[driver] [ur_ros2_control_node-1] #1    Source "../sysdeps/posix/raise.c", line 26, in raise [0x77c045442475]
+[driver] [ur_ros2_control_node-1] #0  | Source "./nptl/pthread_kill.c", line 89, in __pthread_kill_internal
+[driver] [ur_ros2_control_node-1]     | Source "./nptl/pthread_kill.c", line 78, in __pthread_kill_implementation
+[driver] [ur_ros2_control_node-1]       Source "./nptl/pthread_kill.c", line 44, in __pthread_kill [0x77c0454969fc]
+[driver] [ur_ros2_control_node-1] Aborted (Signal sent by tkill() 265724 1000)
+[driver] [ERROR] [ur_ros2_control_node-1]: process has died [pid 265724, exit code -6, cmd '/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node --ros-args --params-file /tmp/launch_params_v60t3_zv --params-file /opt/ros/humble/share/ur_robot_driver/config/ur10_update_rate.yaml --params-file /tmp/launch_params_49h8weqf'].
+[driver] [spawner-9] [FATAL] [1779589303.467838860] [spawner_joint_trajectory_controller]: Could not contact service /controller_manager/list_controllers
+[driver] [spawner-8] [FATAL] [1779589303.470387723] [spawner_joint_state_broadcaster]: Could not contact service /controller_manager/list_controllers
+[driver] [ERROR] [spawner-9]: process has died [pid 265740, exit code 1, cmd '/opt/ros/humble/lib/controller_manager/spawner --controller-manager /controller_manager --controller-manager-timeout 10 --inactive joint_trajectory_controller forward_velocity_controller forward_position_controller forward_effort_controller force_mode_controller passthrough_trajectory_controller freedrive_mode_controller tool_contact_controller --ros-args'].
+[driver] [ERROR] [spawner-8]: process has died [pid 265738, exit code 1, cmd '/opt/ros/humble/lib/controller_manager/spawner --controller-manager /controller_manager --controller-manager-timeout 10 joint_state_broadcaster io_and_status_controller speed_scaling_state_broadcaster force_torque_sensor_broadcaster tcp_pose_broadcaster ur_configuration_controller friction_model_controller scaled_joint_trajectory_controller --ros-args'].
