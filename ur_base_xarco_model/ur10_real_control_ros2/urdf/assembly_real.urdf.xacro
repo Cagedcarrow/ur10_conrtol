@@ -1,14 +1,15 @@
 <?xml version="1.0"?>
 <robot name="assembly" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:arg name="ur_description_share" default="$(find ur_description)" />
+  <xacro:arg name="ur_description_share" default="/opt/ros/humble/share/ur_description" />
+  <xacro:arg name="ur_macro_file" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/ur10_real_control_ros2/urdf/ur_macro_plugin_compat.xacro" />
   <xacro:arg name="name" default="ur" />
   <xacro:arg name="ur_type" default="ur10" />
   <xacro:arg name="tf_prefix" default="" />
-  <xacro:arg name="mesh_root" default="$(find assembly_description)/urdf/meshes" />
-  <xacro:arg name="joint_limit_params" default="$(find ur10_real_control_ros2)/config/ur10/joint_limits.yaml" />
-  <xacro:arg name="kinematics_params" default="$(find ur10_real_control_ros2)/config/ur10/default_kinematics.yaml" />
-  <xacro:arg name="physical_params" default="$(find ur10_real_control_ros2)/config/ur10/physical_parameters.yaml" />
-  <xacro:arg name="visual_params" default="$(find ur10_real_control_ros2)/config/ur10/visual_parameters.yaml" />
+  <xacro:arg name="mesh_root" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_description/urdf/meshes" />
+  <xacro:arg name="joint_limit_params" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/ur10_real_control_ros2/config/ur10/joint_limits.yaml" />
+  <xacro:arg name="kinematics_params" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/ur10_real_control_ros2/config/ur10/default_kinematics.yaml" />
+  <xacro:arg name="physical_params" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/ur10_real_control_ros2/config/ur10/physical_parameters.yaml" />
+  <xacro:arg name="visual_params" default="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/ur10_real_control_ros2/config/ur10/visual_parameters.yaml" />
   <xacro:arg name="transmission_hw_interface" default="" />
   <xacro:arg name="safety_limits" default="false" />
   <xacro:arg name="safety_pos_margin" default="0.15" />
@@ -36,9 +37,9 @@
   <xacro:arg name="fake_sensor_commands" default="false" />
   <xacro:arg name="sim_gazebo" default="false" />
   <xacro:arg name="sim_ignition" default="false" />
-  <xacro:arg name="initial_positions_file" default="$(find ur_description)/config/initial_positions.yaml" />
+  <xacro:arg name="initial_positions_file" default="/opt/ros/humble/share/ur_description/config/initial_positions.yaml" />
 
-  <xacro:include filename="$(arg ur_description_share)/urdf/ur_macro.xacro" />
+  <xacro:include filename="$(arg ur_macro_file)" />
 
   <xacro:property name="initial_positions_file" value="$(arg initial_positions_file)" />
 
@@ -175,12 +176,12 @@
   </link>
 
   <joint name="ur10-sensor_shovel" type="fixed">
-    <parent link="$(arg tf_prefix)tool0" />
+    <parent link="$(arg tf_prefix)wrist_3_link" />
     <child link="sensor_shovel" />
-    <origin xyz="0 0.09 0" rpy="-1.57079632679 1.57079632679 0" />
+    <origin xyz="0 0.09 0" rpy="0 1.5707963 1.5707963" />
   </joint>
 
-  <joint name="sensor_shovel_tcp_fixed" type="fixed">
+  <joint name="sensor_shovel_tcp" type="fixed">
     <parent link="sensor_shovel" />
     <child link="sensor_shovel_tcp" />
     <origin xyz="-0.47377 0.077109 0.0733" rpy="-1.5708 1.5708 -0.61087" />
