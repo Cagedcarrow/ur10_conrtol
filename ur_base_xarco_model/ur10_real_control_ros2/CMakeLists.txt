@@ -15,6 +15,7 @@ install(PROGRAMS
   scripts/check_real_ur10_ready.sh
   scripts/cleanup_real_control_processes.sh
   scripts/real_control_gui.py
+  scripts/ur10_comm_diagnostics.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

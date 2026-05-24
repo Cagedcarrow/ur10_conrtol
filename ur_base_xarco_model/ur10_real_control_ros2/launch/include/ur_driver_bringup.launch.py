@@ -50,8 +50,8 @@ def generate_launch_description():
             DeclareLaunchArgument("ur_type", default_value="ur10"),
             DeclareLaunchArgument("robot_ip", default_value="10.160.9.21"),
             DeclareLaunchArgument("headless_mode", default_value="false"),
-            DeclareLaunchArgument("launch_dashboard_client", default_value="true"),
-            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.100"),
+            DeclareLaunchArgument("launch_dashboard_client", default_value="false"),
+            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.10"),
             ur_control,
         ]
     )

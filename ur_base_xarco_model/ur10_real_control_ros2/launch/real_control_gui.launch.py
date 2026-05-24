@@ -16,7 +16,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("robot_ip", default_value="10.160.9.21"),
-            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.100"),
+            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.10"),
             DeclareLaunchArgument("workspace", default_value="/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model"),
             ExecuteProcess(
                 cmd=[

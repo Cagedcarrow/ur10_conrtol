@@ -159,7 +159,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("robot_ip", default_value="10.160.9.21"),
-            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.100"),
+            DeclareLaunchArgument("reverse_ip", default_value="10.160.9.10"),
             DeclareLaunchArgument("ur_type", default_value="ur10"),
             DeclareLaunchArgument("launch_rviz", default_value="true"),
             DeclareLaunchArgument("launch_driver", default_value="true"),
@@ -169,7 +169,7 @@ def generate_launch_description():
                 description="Start a standalone robot_state_publisher. Keep false when ur_robot_driver is running.",
             ),
             DeclareLaunchArgument("headless_mode", default_value="false"),
-            DeclareLaunchArgument("launch_dashboard_client", default_value="true"),
+            DeclareLaunchArgument("launch_dashboard_client", default_value="false"),
             DeclareLaunchArgument(
                 "rviz_config",
                 default_value=PathJoinSubstitution([FindPackageShare("ur10_real_control_ros2"), "config", "moveit.rviz"]),

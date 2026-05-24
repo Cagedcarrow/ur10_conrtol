@@ -4,7 +4,7 @@
 
 目标地址：
 
-- 主机：`10.160.9.100`
+- 主机：`10.160.9.10`
 - 机器人：`10.160.9.21`
 
 示例手动配置：
@@ -12,7 +12,7 @@
 ```bash
 ip -4 addr show
 sudo ip addr flush dev <你的有线网卡名>
-sudo ip addr add 10.160.9.100/24 dev <你的有线网卡名>
+sudo ip addr add 10.160.9.10/24 dev <你的有线网卡名>
 sudo ip link set <你的有线网卡名> up
 ping 10.160.9.21
 ```
@@ -21,7 +21,7 @@ ping 10.160.9.21
 
 ```bash
 nmcli connection show
-nmcli connection modify "<连接名>" ipv4.addresses 10.160.9.100/24 ipv4.method manual
+nmcli connection modify "<连接名>" ipv4.addresses 10.160.9.10/24 ipv4.method manual
 nmcli connection up "<连接名>"
 ```
 
@@ -30,7 +30,7 @@ nmcli connection up "<连接名>"
 1. 确认机器人 IP 为 `10.160.9.21`
 2. 安装并启用 `External Control` URCap
 3. 在示教器程序树中运行 `External Control`
-4. External Control 回连地址填写 Linux 主机 `10.160.9.100`
+4. External Control 回连地址填写 Linux 主机 `10.160.9.10`
 
 ## 3. 预检
 
@@ -80,7 +80,8 @@ ros2 launch ur10_real_control_ros2 ur10_real_control.launch.py
 ### 没有 `/joint_states`
 
 - 检查 driver 是否启动
-- 检查 `dashboard_client` 是否在线
+- 检查 driver 是否已经出现 `System successfully started`
+- 当前稳定配置默认不启动 `dashboard_client`
 - 检查网线和机器人 IP
 
 ### 出现控制冲突
@@ -95,3 +96,9 @@ ros2 launch ur10_real_control_ros2 ur10_real_control.launch.py
 ```bash
 ros2 run ur10_real_control_ros2 cleanup_real_control_processes.sh
 ```
+
+## 7. 通信问题复盘
+
+当前 GUI 实机控制链路、`10.160.9.10` 回连地址、端口检测、Dashboard/Primary 并发问题和最终稳定操作流程见：
+
+- `docs/real_control_gui_communication_debugging.md`
