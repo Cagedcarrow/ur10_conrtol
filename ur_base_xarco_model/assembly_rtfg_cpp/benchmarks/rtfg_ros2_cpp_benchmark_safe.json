@@ -1,0 +1,16 @@
+{
+  "success": false,
+  "message": "第 61/276 个目标位姿 ROS2 C++ 求解失败 [圆弧]，位置误差 0.000668936 m，姿态误差 14.0798 deg，clearance -1 m，clearance 违规对象: block_basin_left_wall",
+  "anchor_count": 0,
+  "playback_count": 0,
+  "timing_total_wall_s": 0.0,
+  "timing_ik_total_s": 0.0,
+  "timing_collision_total_s": 0.0,
+  "timing_avg_per_pose_s": 0.0,
+  "min_self_clearance": 0.0,
+  "min_tool_body_clearance": 0.0,
+  "min_tool_basin_clearance": 0.0,
+  "min_tool_basin_object": "",
+  "yaml_path": "/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_rtfg_cpp/config/environment_runtime_config_safe.yaml",
+  "clearance_threshold": 0.002
+}

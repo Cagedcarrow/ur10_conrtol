@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9. 核心算法公式与参数说明 — assembly_rtfg_cpp</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#58a6ff',lineColor:'#58a6ff',textColor:'#e6edf3'}});</script>
+<style>
+:root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--bg-code:#0d1117;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--accent-purple:#a371f7;--accent-red:#f85149;--border:#30363d;--radius:8px;--font-mono:'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.7;min-height:100vh}
+.main{max-width:1100px;margin:0 auto;padding:2rem 2rem 3rem}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.25rem}
+.subtitle{color:var(--text-secondary);margin-bottom:2rem}
+h2{color:var(--accent-orange);margin:2.5rem 0 1rem;font-size:1.4rem}
+h3{color:var(--accent);margin:1.5rem 0 0.5rem}
+h4{color:var(--accent-green);margin:1rem 0 0.4rem;font-size:1.05rem}
+p{margin:0.75rem 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:var(--bg-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.9em;border:1px solid var(--border)}
+pre{background:var(--bg-code);padding:1rem;border-radius:6px;overflow-x:auto;margin:1rem 0;border:1px solid var(--border)}
+pre code{padding:0;border:none;background:none}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid var(--border);padding:0.55rem 0.8rem;text-align:left}
+th{background:var(--bg-secondary);font-weight:600;color:var(--accent)}
+td{font-size:0.95rem}
+tr:nth-child(even){background:rgba(255,255,255,0.02)}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin:1.25rem 0;overflow-x:auto}
+.notice{border-left:3px solid var(--accent);background:rgba(88,166,255,0.08);padding:0.75rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0}
+.notice.info{border-left-color:var(--accent-green);background:rgba(63,185,80,0.08)}
+.notice.warning{border-left-color:var(--accent-orange);background:rgba(210,153,34,0.08)}
+.notice.danger{border-left-color:var(--accent-red);background:rgba(248,81,73,0.08)}
+.nav-links{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.95rem}
+footer{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+ul,ol{padding-left:1.5rem;margin:0.5rem 0}
+li{margin:0.3rem 0}
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>9. 核心算法公式与参数说明</h1>
+<p class="subtitle">DLS 求解公式、权重调度策略、连续性代价函数、调参顺序与典型现象诊断手册</p>
+
+<!-- ======================================================================= -->
+<h2>9.1 研究背景与调参目标</h2>
+<!-- ======================================================================= -->
+
+<p><code>assembly_rtfg_cpp</code> 的调参不是只让 IK 返回成功，而是同时满足四个条件：</p>
+<ol>
+  <li><strong>TCP 位置轨迹符合挖掘几何</strong> — 轨迹必须贴合料斗形状，避免工具与料斗壁碰撞。</li>
+  <li><strong>工具姿态变化连续</strong> — 不在 wrist 处产生突变，保证关节轨迹平滑可回放。</li>
+  <li><strong>工具、机器人本体和料斗之间保持 clearance</strong> — 碰撞安全距离始终高于阈值。</li>
+  <li><strong>关节轨迹能被 <code>ros2_control</code> 回放</strong> — 步长、速度、加速度不超出硬件限制。</li>
+</ol>
+
+<p>因此，调参时不能只看 <code>success</code>，还要看全套诊断指标：</p>
+
+<table>
+  <tr><th>指标</th><th>含义</th><th>理想范围</th></tr>
+  <tr><td><code>anchor_count</code></td><td>锚点 IK 成功数</td><td>接近总目标点数</td></tr>
+  <tr><td><code>playback_count</code></td><td>回放插值成功数</td><td>接近锚点数</td></tr>
+  <tr><td><code>max_anchor_qstep_deg</code></td><td>锚点间最大关节步长</td><td>&lt; 5-10 deg</td></tr>
+  <tr><td><code>max_playback_qstep_deg</code></td><td>回放最大关节步长</td><td>&lt; 2-5 deg</td></tr>
+  <tr><td><code>max_target_rot_deg</code></td><td>目标姿态最大旋转角</td><td>视轨迹而定</td></tr>
+  <tr><td><code>max_actual_rot_deg</code></td><td>实际姿态最大旋转角</td><td>视轨迹而定</td></tr>
+  <tr><td><code>min_self_clearance</code></td><td>最小自碰撞距离</td><td>&ge; clearance_threshold</td></tr>
+  <tr><td><code>min_tool_body_clearance</code></td><td>最小工具-本体距离</td><td>&ge; clearance_threshold</td></tr>
+  <tr><td><code>min_tool_basin_clearance</code></td><td>最小工具-料斗距离</td><td>&ge; clearance_threshold</td></tr>
+  <tr><td><code>first_collision_object</code></td><td>首个碰撞对象名称</td><td>—</td></tr>
+  <tr><td><code>first_collision_segment</code></td><td>首次碰撞所在段</td><td>—</td></tr>
+</table>
+
+<div class="notice info">
+  <strong>调参核心原则：</strong>避免同时大幅修改多个变量。每次只改一个参数，记录 success、首个碰撞对象、最小 tool-basin clearance 和总耗时，逐步逼近最优解。
+</div>
+
+<!-- ======================================================================= -->
+<h2>9.2 核心算法与数学公式</h2>
+<!-- ======================================================================= -->
+
+<h3>9.2.1 轨迹几何公式</h3>
+
+<h4>切入点计算</h4>
+<p>切入点确定了工具进入料斗的水平位置和垂直深度：</p>
+<pre><code class="language-text">y_entry = inner_y_min + left_wall_offset
+z_mud  = floor_z + mud_height
+p_entry = [y_entry, z_mud]</code></pre>
+<p><code>left_wall_offset</code> 越小，轨迹越靠近左壁；越大，轨迹越靠近右壁。若碰撞对象是 <code>block_basin_left_wall</code>，通常应增大该值；若碰撞对象是 <code>block_basin_right_wall</code>，通常应减小该值。</p>
+
+<h4>切入起点（Approach）</h4>
+<p>在切入点之前沿切入方向延伸一段距离，形成过渡段：</p>
+<pre><code class="language-text">dir = [cos(theta), sin(theta)]
+p_approach = p_entry - approach_len * dir</code></pre>
+<p><code>approach_len</code> 影响进入料斗前的过渡长度。太短会让第一段姿态变化集中，太长可能让工具在进入前扫过料斗边缘。</p>
+
+<h4>圆弧半径</h4>
+<p>挖掘轨迹的圆弧半径由切入深度和切入角共同决定：</p>
+<pre><code class="language-text">radius = depth / (1 - cos(abs(theta)))</code></pre>
+<p>这个公式意味着：</p>
+<ul>
+  <li><code>depth</code> 越大，圆弧越深，穿入风险越高。</li>
+  <li><code>theta_deg</code> 绝对值越小，分母越小，半径会急剧变大。</li>
+  <li><code>theta_deg</code> 太接近 0 时，圆弧不再适合表达挖掘动作，因此第一版把它限制到 <code>-60</code> 到 <code>-5</code> 度。</li>
+</ul>
+
+<h4>垂直侵入量</h4>
+<pre><code class="language-text">vertical_penetration = z_mud - p_arc_end.z</code></pre>
+<p>这个值越大，挖掘动作越深，但 tool-basin 或 tool-body 碰撞风险也会增加。默认 YAML 的派生值约为 <code>0.05212 m</code>。</p>
+
+<h3>9.2.2 姿态公式</h3>
+
+<h4>Track 姿态（斜线和圆弧阶段）</h4>
+<p>在斜线切入和圆弧挖掘阶段，工具姿态与轨迹切向对齐：</p>
+<pre><code class="language-text">x_axis = -normalize(tangent)
+z_axis = normalize(world_up - dot(world_up, x_axis) * x_axis)
+y_axis = normalize(cross(z_axis, x_axis))
+z_axis = normalize(cross(x_axis, y_axis))</code></pre>
+<p>这个姿态让工具尖端方向与轨迹切向相关，同时尽量使工具上方向接近世界上方。</p>
+
+<h4>Lift 姿态（出泥阶段）</h4>
+<p>出泥阶段工具姿态切换到固定上方向，避免 wrist 过度翻转：</p>
+<pre><code class="language-text">z_axis = [0, 0, 1]
+x_axis = -normalize(horizontal_heading)
+y_axis = normalize(cross(z_axis, x_axis))
+x_axis = normalize(cross(y_axis, z_axis))</code></pre>
+<p>这让工具出泥时姿态更稳定，避免继续沿圆弧切线导致 wrist 过度翻转。</p>
+
+<h4>姿态过渡（Slerp + Quintic Blend）</h4>
+<pre><code class="language-text">R = slerp(R_track_end, R_lift, quinticBlend(alpha))</code></pre>
+<p><code>quinticBlend</code> 使用五次多项式混合，确保过渡开始和结束处的一阶、二阶导数都连续平滑。</p>
+
+<h3>9.2.3 DLS（Damped Least Squares）IK 求解公式</h3>
+
+<p>IK 求解器使用阻尼最小二乘法（DLS），通过数值雅可比迭代逼近目标位姿：</p>
+
+<pre><code class="language-text">J = numericJacobian(q)         // 6×6 数值雅可比
+e = poseError(T_desired, T_current)  // 6D 姿态误差
+dq = J^T * (J * J^T + lambda^2 * I)^{-1} * e
+q_new = q + dq</code></pre>
+
+<p>其中 <code>lambda</code> 是自适应阻尼因子（范围 <code>[5e-4, 0.1]</code>），在接近奇异位姿时自动增大以维持数值稳定性。迭代上限为 60 步，停滞检测窗口为 8 步。</p>
+
+<h3>9.2.4 连续性代价函数</h3>
+
+<p>多候选 IK 结果遴选时，综合考虑位置误差、姿态误差和与前一点的关节连续性：</p>
+
+<pre><code class="language-text">cost = w_pos * pos_error + w_rot * rot_error + w_cont * continuity_cost
+continuity_cost = sum(w_i * |q_i - q_prev_i|)</code></pre>
+
+<p><code>continuity_cost</code> 使用加权绝对值距离，权重根据关节类型分配：大臂关节（J1-J3）权重较低，wrist 关节（J4-J6）权重较高，以鼓励 wrist 优先对齐上一位姿。</p>
+
+<h3>9.2.5 权重调度策略</h3>
+
+<p>四阶段权重本质是"姿态从严格到放松"：</p>
+
+<pre><code class="language-text">// 阶段 1 — 严格姿态
+[1.00, 1.00, 1.00, 0.20, 0.20, 0.20]
+// 阶段 2 — 放松方向
+[1.00, 1.00, 1.00, 0.10, 0.10, 0.10]
+// 阶段 3 — 大幅放松方向
+[1.00, 1.00, 1.00, 0.03, 0.03, 0.03]
+// 阶段 4 — 仅位置约束
+[1.00, 1.00, 1.00, 0.00, 0.00, 0.00]</code></pre>
+
+<p>前三个分量对应位置权重（固定为 1），后三个分量对应姿态方向权重（逐阶段递减）。当某些点姿态不可达时，仍尽量让尖端位置跟上轨迹。对挖掘类任务，尖端位置、连续性和碰撞安全通常优先于末端姿态完全等同。</p>
+
+<h3>9.2.6 算法调度流程图</h3>
+
+<div class="mermaid">
+graph TB
+    START["开始调参"]
+    TRAJ["计算轨迹几何<br/>p_entry / radius / approach"]
+    POSE["生成 Track + Lift 姿态<br/>Slerp 过渡"]
+
+    subgraph IK_LOOP["IK 四阶段权重求解"]
+        W1["阶段 1 权重 [1,1,1,0.2,0.2,0.2]"]
+        W2["阶段 2 权重 [1,1,1,0.1,0.1,0.1]"]
+        W3["阶段 3 权重 [1,1,1,0.03,0.03,0.03]"]
+        W4["阶段 4 权重 [1,1,1,0.0,0.0,0.0]"]
+        DLS["DLS 迭代求解<br/>lambda 自适应 [5e-4, 0.1]"]
+        COST["连续性代价遴选<br/>pos + rot + continuity"]
+    end
+
+    COLL["碰撞检测<br/>自碰撞 / tool-body / tool-basin"]
+    AUDIT["稀疏审计 clearance"]
+    DECIDE{"所有指标达标?"}
+
+    START --> TRAJ
+    TRAJ --> POSE
+    POSE --> W1
+    W1 --> DLS
+    DLS --> W2
+    W2 --> DLS
+    DLS --> W3
+    W3 --> DLS
+    DLS --> W4
+    W4 --> DLS
+    DLS --> COST
+    COST --> COLL
+    COLL --> AUDIT
+    AUDIT --> DECIDE
+    DECIDE -->|"是"| DONE["轨迹可执行"]
+    DECIDE -->|"否"| ADJUST["调整参数<br/>left_wall_offset / depth / theta_deg / approach_len"]
+    ADJUST --> TRAJ
+
+    style W1 fill:#1c2333,stroke:#58a6ff,stroke-width:1px
+    style W2 fill:#1c2333,stroke:#58a6ff,stroke-width:1px
+    style W3 fill:#1c2333,stroke:#58a6ff,stroke-width:1px
+    style W4 fill:#1c2333,stroke:#58a6ff,stroke-width:1px
+    style DLS fill:#1c2333,stroke:#d29922,stroke-width:2px
+    style COST fill:#1c2333,stroke:#a371f7,stroke-width:2px
+    style DONE fill:#1c2333,stroke:#3fb950,stroke-width:2px
+    style ADJUST fill:#1c2333,stroke:#f85149,stroke-width:2px
+</div>
+
+<!-- ======================================================================= -->
+<h2>9.3 参数影响分析</h2>
+<!-- ======================================================================= -->
+
+<h3>9.3.1 IK 参数一览</h3>
+
+<table>
+  <tr><th>参数</th><th style="text-align: right;">当前默认值</th><th>影响说明</th><th>调参方向</th></tr>
+  <tr><td><code>clearance_threshold</code></td><td style="text-align: right;">0.002 m</td><td>碰撞安全距离阈值；越大越保守，越容易失败</td><td>碰撞多时增大，正常时保持</td></tr>
+  <tr><td><code>ik_position_tolerance</code></td><td style="text-align: right;">0.03 m</td><td>位置误差容限；越小位置越准，IK 越难收敛</td><td>狭窄空间可适当放松</td></tr>
+  <tr><td><code>max_iterations</code></td><td style="text-align: right;">60</td><td>DLS 最大迭代次数；越大越可能收敛，但更慢</td><td>收敛困难时适当增大</td></tr>
+  <tr><td><code>lambda</code></td><td style="text-align: right;">5e-3</td><td>阻尼因子基值；越大越稳定但收敛慢</td><td>奇异附近可自适应增大</td></tr>
+</table>
+
+<div class="notice">
+  <strong>关于 ik_position_tolerance=0.03：</strong>这个值看起来不小，但这是在狭小空间里允许姿态放松的第一版容差。后续若引入解析 IK 或更强后端，可以逐步收紧至 0.01-0.005 m。
+</div>
+
+<h3>9.3.2 轨迹参数影响矩阵</h3>
+
+<table>
+  <tr><th>参数</th><th>碰撞风险</th><th>IK 成功率</th><th>姿态连续性</th><th>回放平滑性</th></tr>
+  <tr><td><code>left_wall_offset</code> ↑</td><td>右壁风险↑ 左壁风险↓</td><td>无直接影响</td><td>无直接影响</td><td>无直接影响</td></tr>
+  <tr><td><code>depth</code> ↑</td><td>tool-basin 风险↑</td><td>圆弧半径增大，IK 变易</td><td>轨迹更长，姿态变化更大</td><td>可能产生更大步长</td></tr>
+  <tr><td><code>theta_deg</code> ↑ (绝对值)</td><td>tool-basin 风险↑</td><td>圆弧曲率增大，IK 变难</td><td>转角更集中</td><td>步长更集中</td></tr>
+  <tr><td><code>approach_len</code> ↑</td><td>扫过边缘风险↑</td><td>过渡更长，首点 IK 更易</td><td>姿态变化更分散</td><td>步长更平缓</td></tr>
+  <tr><td><code>mud_height</code> ↑</td><td>tool-basin 风险↓</td><td>目标位姿抬升，IK 更易</td><td>无直接影响</td><td>无直接影响</td></tr>
+</table>
+
+<!-- ======================================================================= -->
+<h2>9.4 调参顺序与诊断流程</h2>
+<!-- ======================================================================= -->
+
+<h3>9.4.1 先解决碰撞</h3>
+
+<p>如果 <code>min_tool_basin_clearance &lt; 0</code>（即发生穿透）：</p>
+<ol>
+  <li>查看 <code>first_collision_object</code> 确定碰撞对象。</li>
+  <li>如果是左壁（<code>block_basin_left_wall</code>），增大 <code>left_wall_offset</code>。</li>
+  <li>如果是右壁（<code>block_basin_right_wall</code>），减小 <code>left_wall_offset</code>。</li>
+  <li>如果是底部，减小 <code>depth</code> 或增大 <code>mud_height</code>。</li>
+  <li>如果碰撞出现在 <code>出泥</code> 段，检查 lift 姿态和 <code>x_plane</code> 偏移。</li>
+</ol>
+
+<h3>9.4.2 再解决 IK 失败</h3>
+
+<p>如果日志显示某个目标位姿求解失败：</p>
+<ol>
+  <li>降低 <code>depth</code>，减小圆弧深度。</li>
+  <li>减小 <code>approach_len</code>，缩短过渡段。</li>
+  <li>检查 <code>theta_deg</code> 是否接近限幅边界（-60 到 -5 度）。</li>
+  <li>使用当前真实 joint state 作为 <code>current_q</code>，不要只用 URDF 初始值。</li>
+  <li>若失败集中在第一个点，说明起始姿态和目标段不连续，应先调整 approach。</li>
+</ol>
+
+<h3>9.4.3 最后优化速度</h3>
+
+<p>只有当轨迹无碰撞且 IK 成功后，性能数字才有比较意义。带碰撞的失败路径会触发更多诊断和回传，不适合当最终性能目标。</p>
+
+<h3>9.4.4 诊断流程 Mermaid</h3>
+
+<div class="mermaid">
+graph TD
+    START["检查 min_tool_basin_clearance"] --> COLL_CHECK{"&lt; 0 ?"}
+    COLL_CHECK -->|"是"| COLL_OBJ["查看 first_collision_object"]
+    COLL_OBJ --> LEFT{"左壁?"}
+    LEFT -->|"是"| INC_OFF["增大 left_wall_offset"]
+    LEFT -->|"否"| RIGHT{"右壁?"}
+    RIGHT -->|"是"| DEC_OFF["减小 left_wall_offset"]
+    RIGHT -->|"否"| BOTTOM{"底部?"}
+    BOTTOM -->|"是"| DEC_DEPTH["减小 depth<br/>或增大 mud_height"]
+    BOTTOM -->|"否"| LIFT_SEG{"出泥段?"}
+    LIFT_SEG -->|"是"| CHECK_LIFT["检查 lift 姿态 / x_plane"]
+    LIFT_SEG -->|"否"| OTHER["检查其余碰撞对象"]
+
+    COLL_CHECK -->|"否"| IK_CHECK{"IK 失败?"}
+    IK_CHECK -->|"是"| IK_FIX["降低 depth<br/>减小 approach_len<br/>检查 theta_deg 限幅<br/>使用真实 current_q"]
+    IK_CHECK -->|"否"| PERF_CHECK{"性能瓶颈?"}
+    PERF_CHECK -->|"是"| PERF_TUNE["调整 max_iterations / lambda<br/>或优化种子策略"]
+    PERF_CHECK -->|"否"| DONE["轨迹可执行"]
+
+    style COLL_CHECK fill:#1c2333,stroke:#f85149,stroke-width:2px
+    style DONE fill:#1c2333,stroke:#3fb950,stroke-width:2px
+    style INC_OFF fill:#1c2333,stroke:#d29922,stroke-width:1px
+    style DEC_OFF fill:#1c2333,stroke:#d29922,stroke-width:1px
+    style DEC_DEPTH fill:#1c2333,stroke:#d29922,stroke-width:1px
+</div>
+
+<!-- ======================================================================= -->
+<h2>9.5 对比效果与性能数据</h2>
+<!-- ======================================================================= -->
+
+<p>以下对比基于 assembly_rtfg_cpp 第 1 版默认参数与 MATLAB MEX 基线（build_mex.m 编译的 <code>rtfg_solver_mex</code>）在同一测试集（258 目标位姿）上的表现。</p>
+
+<table>
+  <tr><th>指标</th><th>MATLAB MEX (基线)</th><th>assembly_rtfg_cpp (ROS2 C++)</th><th>变化</th></tr>
+  <tr><td>总耗时（所有阶段）</td><td>— (待 benchmark 补全)</td><td>— (待 benchmark 补全)</td><td>—</td></tr>
+  <tr><td>IK 求解耗时</td><td>— (待 benchmark 补全)</td><td>— (待 benchmark 补全)</td><td>—</td></tr>
+  <tr><td>碰撞检测耗时</td><td>— (待 benchmark 补全)</td><td>— (待 benchmark 补全)</td><td>—</td></tr>
+  <tr><td>加速比</td><td>1.0x</td><td>— (待 benchmark 补全)</td><td>—</td></tr>
+</table>
+
+<div class="notice warning">
+  <strong>说明：</strong>当前版本（第 1 版）以功能验证和碰撞解决为首要目标，尚未在 ROS2 C++ 端完成系统化的 benchmark 对比。以上表格为预留结构，待 pipeline 稳定后补充。建议在确定 safe YAML 配置后，使用 <code>config/environment_runtime_config_safe.yaml</code> 记录 default 与 safe 两组结果，避免把碰撞诊断工况和可执行工况混在一起。
+</div>
+
+<!-- ======================================================================= -->
+<h2>9.6 结果分析与典型现象</h2>
+<!-- ======================================================================= -->
+
+<h3>9.6.1 <code>trajectory solved but collision audit found violations</code></h3>
+<p><strong>含义：</strong></p>
+<ul>
+  <li>IK 成功。</li>
+  <li>playback 轨迹生成成功。</li>
+  <li>稀疏碰撞审计发现 clearance 违规。</li>
+  <li>结果可用于诊断，但不应直接执行。</li>
+</ul>
+<p><strong>处理：</strong>按照 9.4.1 碰撞解决流程调整轨迹参数。</p>
+
+<h3>9.6.2 <code>clearance below threshold</code></h3>
+<p><strong>含义：</strong></p>
+<ul>
+  <li>IK 误差达标。</li>
+  <li>FCL 检测到候选配置离障碍太近（小于 <code>clearance_threshold</code>）。</li>
+  <li>该候选被过滤，求解器继续搜索其他种子。</li>
+</ul>
+<p><strong>影响：</strong>可能增加 IK 迭代次数，但不一定导致最终失败。</p>
+
+<h3>9.6.3 <code>accepted relaxed-orientation fallback</code></h3>
+<p><strong>含义：</strong></p>
+<ul>
+  <li>严格姿态权重阶段没有找到更好候选。</li>
+  <li>位置误差达标。</li>
+  <li>碰撞 clearance 达标。</li>
+  <li>姿态误差被允许放松到下一阶段权重。</li>
+</ul>
+<p><strong>影响：</strong>这是权重调度机制的正常行为。如果频繁出现在同一区域，说明该区域姿态约束过紧。</p>
+
+<h3>9.6.4 <code>KDL root inertia warning</code></h3>
+<p><strong>含义：</strong></p>
+<ul>
+  <li>KDL 不支持 root link inertia。</li>
+  <li>当前链仍可构建。</li>
+  <li>如需消除，增加 dummy root link。</li>
+</ul>
+<p><strong>影响：</strong>不影响求解正确性，可忽略。</p>
+
+<!-- ======================================================================= -->
+<h2>9.7 结论与改进效果</h2>
+<!-- ======================================================================= -->
+
+<h3>9.7.1 当前效果总结</h3>
+
+<p>第 1 版 <code>assembly_rtfg_cpp</code> 的算法与参数体系已建立以下能力：</p>
+<ul>
+  <li><strong>轨迹几何生成</strong>：支持切入点、approach、圆弧、lift 完整挖掘轨迹参数的解析计算。</li>
+  <li><strong>姿态调度</strong>：Track/Lift 双模式姿态 + Slerp/Quintic 平滑过渡。</li>
+  <li><strong>IK 求解</strong>：DLS 数值求解器 + 四阶段权重调度 + 连续性代价遴选。</li>
+  <li><strong>碰撞检测</strong>：自碰撞、tool-body、tool-basin 三层 FCL 检测管线。</li>
+  <li><strong>调参诊断</strong>：全套指标输出 + 典型现象解释 + 分步调参策略。</li>
+</ul>
+
+<h3>9.7.2 待改进方向</h3>
+
+<table>
+  <tr><th>问题</th><th>当前状态</th><th>改进方向</th></tr>
+  <tr><td>tool-basin penetration</td><td>默认参数存在穿透</td><td>小步扫描 left_wall_offset / depth / theta_deg，确定 safe YAML</td></tr>
+  <tr><td>benchmark 缺失</td><td>无系统化性能数据</td><td>pipeline 稳定后补充 total_time / IK_time / collision_time 对比</td></tr>
+  <tr><td>ik_position_tolerance 偏松</td><td>0.03 m</td><td>引入解析 IK 后逐步收紧至 0.01-0.005 m</td></tr>
+  <tr><td>YAML 无安全基线</td><td>只有默认配置</td><td>新增 <code>environment_runtime_config_safe.yaml</code>，同时记录两组结果</td></tr>
+</table>
+
+<h3>9.7.3 可执行条件检查清单</h3>
+
+<p>只有满足以下所有条件才应调用 <code>/rtfg/execute_cached</code>：</p>
+<ul>
+  <li><code>/rtfg/fit_preview</code> 返回 <code>success=true</code>。</li>
+  <li><code>min_tool_basin_clearance &gt;= clearance_threshold</code>。</li>
+  <li><code>min_tool_body_clearance &gt;= clearance_threshold</code>。</li>
+  <li><code>min_self_clearance &gt;= clearance_threshold</code>。</li>
+  <li>playback 点数合理。</li>
+  <li>最大关节步长没有异常突变。</li>
+</ul>
+
+<div class="notice danger">
+  <strong>安全警告：</strong>如果服务返回 <code>success=false</code> 但仍有 trajectory，这个 trajectory 只能用于诊断和 RViz 观察，<strong>不应执行</strong>。
+</div>
+
+<h3>9.7.4 推荐调参扫描步长</h3>
+
+<p>基于当前默认参数的 tool-basin penetration 问题，建议以下小步扫描策略：</p>
+
+<pre><code class="language-text">left_wall_offset: 当前值附近 ±0.02 m
+x_plane:          当前值附近 ±0.02 m
+depth:            从当前值逐步减小 0.005 m
+theta_deg:        每次调整 2 到 5 deg</code></pre>
+
+<p>每次只改一个变量，记录：</p>
+<ul>
+  <li>是否 <code>success</code>。</li>
+  <li>首个碰撞对象。</li>
+  <li>最小 tool-basin clearance。</li>
+  <li>总耗时。</li>
+</ul>
+
+<!-- ======================================================================= -->
+<!-- Navigation & Footer -->
+<!-- ======================================================================= -->
+
+<div class="nav-links">
+  <a href="../rtfg_ros2_cpp_技术文档/index.html">🏠 返回索引</a>
+  <a href="08_验收审计与后续优化计划.html">← 08_验收审计与后续优化计划</a>
+  <a href="10_ROS2消息字段与排障手册.html">10_ROS2消息字段与排障手册 →</a>
+</div>
+
+<footer>
+  <p>最后更新: 2026-06-02 | assembly_rtfg_cpp 技术文档 | ROS2 Humble</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,2 @@
+success,message,anchor_count,playback_count,timing_total_wall_s,timing_ik_total_s,timing_collision_total_s,timing_avg_per_pose_s,min_self_clearance,min_tool_body_clearance,min_tool_basin_clearance,min_tool_basin_object,clearance_threshold
+True,ok,273,1322,303.31665858,276.042121714,27.272817419,1.011143302981685,0.017838678009144692,0.028496173874748756,1.4835551491704464,block_basin_left_wall,0.002

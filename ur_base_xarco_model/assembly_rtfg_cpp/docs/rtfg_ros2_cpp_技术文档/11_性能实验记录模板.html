@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>11. 性能实验记录模板与对比口径 — assembly_rtfg_cpp 技术文档</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#58a6ff',lineColor:'#58a6ff',textColor:'#e6edf3'}});</script>
+<style>
+:root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--bg-code:#0d1117;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--accent-purple:#a371f7;--accent-red:#f85149;--border:#30363d;--radius:8px;--font-mono:'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.7;min-height:100vh}
+.main{max-width:1100px;margin:0 auto;padding:2rem 2rem 3rem}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.25rem}
+.subtitle{color:var(--text-secondary);margin-bottom:2rem}
+h2{color:var(--accent-orange);margin:2.5rem 0 1rem;font-size:1.4rem}
+h3{color:var(--accent);margin:1.5rem 0 0.5rem}
+h4{color:var(--text-secondary);margin:1.2rem 0 0.4rem}
+p{margin:0.75rem 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:var(--bg-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.9em;border:1px solid var(--border)}
+pre{background:var(--bg-code);padding:1rem;border-radius:6px;overflow-x:auto;margin:1rem 0;border:1px solid var(--border)}
+pre code{padding:0;border:none;background:none}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid var(--border);padding:0.55rem 0.8rem;text-align:left}
+th{background:var(--bg-secondary);font-weight:600;color:var(--accent)}
+td{font-size:0.95rem}
+tr:nth-child(even){background:rgba(255,255,255,0.02)}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin:1.25rem 0;overflow-x:auto}
+.notice{border-left:3px solid var(--accent);background:rgba(88,166,255,0.08);padding:0.75rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0}
+.notice.info{border-left-color:var(--accent-green);background:rgba(63,185,80,0.08)}
+.notice.warn{border-left-color:var(--accent-orange);background:rgba(210,153,34,0.08)}
+.nav-links{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.95rem}
+footer{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>11. 性能实验记录模板与对比口径</h1>
+<p class="subtitle">实验记录表模板、测试环境说明、对比口径、复现步骤、优化有效性判断规则</p>
+
+<div class="notice">
+<strong>核心原则：</strong>轨迹拟合性能很容易被不同条件混淆。一次 service call 的总耗时不仅取决于 C++ IK，还取决于轨迹点数、当前关节角、是否有碰撞、clearance 门限、是否发布完整 PoseArray、是否打印完整 service response、是否启动 RViz 和 MoveIt、编译类型是 Debug 还是 Release、CPU 当时是否被其他 ROS 节点占用。因此，后续每次说"快了多少"都必须记录完整实验条件，否则不能判断是算法真的变快，还是点数减少、碰撞减少或输出变少。
+</div>
+
+<!-- ============================================================ -->
+<h2>1. 研究背景与目标</h2>
+<!-- ============================================================ -->
+
+<h3>1.1 为什么需要标准化实验记录</h3>
+<p>在 ROS2 C++ 迁移过程中，性能对比面临多重混淆因素：</p>
+<ul>
+  <li><strong>轨迹点数变化：</strong>不同的 anchor_count 和 playback_count 直接影响总耗时，不能跨点数直接比较耗时绝对值。</li>
+  <li><strong>碰撞状态差异：</strong>有碰撞 vs 无碰撞路径的 IK 求解路径不同，碰撞检测耗时也不同。</li>
+  <li><strong>输出负载差异：</strong>是否发布完整 PoseArray、是否打印完整 service response 消息体，会影响 wall clock 计时。</li>
+  <li><strong>运行环境差异：</strong>Debug vs Release 编译、RViz/MoveIt 是否启动、CPU 负载状态，都会引入显著偏差。</li>
+</ul>
+<p>因此，建立标准化的实验记录模板是对比口径一致性的基础，也是后续判断优化是否有效的必要条件。</p>
+
+<h3>1.2 当前实验环境</h3>
+<p>当前第一版验证环境：</p>
+<pre><code>ROS 2: Humble
+workspace: /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model
+package: assembly_rtfg_cpp
+build: colcon Release
+model: assembly_rtfg_solver.urdf
+runtime YAML: config/environment_runtime_config.yaml
+base link: base_jizuo
+tip link: sensor_shovel_tcp
+controller: mock_components/GenericSystem
+</code></pre>
+
+<p>构建命令：</p>
+<pre><code class="language-bash">source /opt/ros/humble/setup.bash
+source /home/liuxiaopeng/ws_moveit2/install/setup.bash 2>/dev/null || true
+colcon build --symlink-install --packages-select assembly_rtfg_cpp --cmake-args -DCMAKE_BUILD_TYPE=Release
+</code></pre>
+
+<p>Benchmark 运行命令：</p>
+<pre><code class="language-bash">source install/setup.bash
+ros2 run assembly_rtfg_cpp rtfg_solver_node
+python3 install/assembly_rtfg_cpp/share/assembly_rtfg_cpp/benchmarks/rtfg_benchmark.py
+</code></pre>
+
+<!-- ============================================================ -->
+<h2>2. 实验记录体系设计</h2>
+<!-- ============================================================ -->
+
+<h3>2.1 双 Benchmark 对比口径</h3>
+
+<p>MATLAB 文档中的历史基线是重要参考，但需注意口径差异：</p>
+
+<table>
+  <tr><th>版本</th><th>是否 ROS2</th><th>是否返回 ROS message</th><th>是否默认碰撞诊断</th><th>备注</th></tr>
+  <tr><td>MATLAB Robotics Toolbox</td><td>否</td><td>否</td><td>不完全一致</td><td>MATLAB 层 IK</td></tr>
+  <tr><td>C++ MEX</td><td>否</td><td>否</td><td>MATLAB struct</td><td>MATLAB 进程内调用</td></tr>
+  <tr><td>ROS2 C++ 第一版</td><td>是</td><td>是</td><td>是</td><td>完整 service/topic 路径</td></tr>
+</table>
+
+<p>因此，建立两类 Benchmark 分别对应不同对比目标：</p>
+
+<div class="mermaid">
+flowchart LR
+    subgraph Core["Core Benchmark<br/>直接调用 rtfg_core"]
+        A1[不经过 ROS2 message] --> A2[纯 C++ 计算耗时]
+        A2 --> A3[适合与 MEX 内核严格对比]
+    end
+    subgraph Service["Service Benchmark<br/>调用 /rtfg/fit_preview"]
+        B1[完整 ROS2 service 路径] --> B2[含序列化/反序列化]
+        B2 --> B3[适合评估用户体验]
+    end
+    Core --> C{"对比目标不同"}
+    Service --> C
+    C --> D[MEX 历史基线: Core Benchmark]
+    C --> E[用户感知性能: Service Benchmark]
+</div>
+
+<div class="notice info">
+<strong>对比口径规则：</strong>只有 Core Benchmark 才适合和 MEX 内核严格对比；Service Benchmark 更适合评估 ROS2 用户体验。
+</div>
+
+<h3>2.2 实验记录模板</h3>
+<p>每次性能优化后新增记录，按下述结构完整填写：</p>
+<pre><code>日期:
+commit/变更摘要:
+构建类型:
+YAML:
+current_q 来源:
+clearance_threshold:
+anchor_count:
+playback_count:
+success:
+first_collision_type:
+first_collision_object:
+total_wall_s:
+ik_total_s:
+collision_total_s:
+avg_per_pose_s:
+max_anchor_qstep_deg:
+max_playback_qstep_deg:
+min_self_clearance:
+min_tool_body_clearance:
+min_tool_basin_clearance:
+对比上一版:
+结论:
+</code></pre>
+
+<h3>2.3 建议保存的文件结构</h3>
+<p>建议把 benchmark 结果保存到 <code>benchmarks/results/</code> 目录：</p>
+<pre><code>benchmarks/results/
+  default_collision_YYYYMMDD_HHMMSS.json
+  safe_execution_YYYYMMDD_HHMMSS.json
+  core_default_YYYYMMDD_HHMMSS.json
+  core_safe_YYYYMMDD_HHMMSS.json
+</code></pre>
+<p>当前第一版只写 latest 文件，后续可以扩展脚本自动带时间戳。</p>
+
+<!-- ============================================================ -->
+<h2>3. 对比效果</h2>
+<!-- ============================================================ -->
+
+<h3>3.1 当前默认工况记录</h3>
+<p>当前默认工况不是无碰撞执行工况，而是碰撞诊断工况。第一版实测数据：</p>
+<pre><code>success: false
+message: trajectory solved but collision audit found violations
+anchor_count: 273
+playback_count: 约 1338
+total_wall_s: 约 17-18
+ik_total_s: 约 15
+collision_total_s: 约 2.6-2.8
+avg_per_pose_s: 约 0.054
+min_self_clearance: 约 0.0177 m
+min_tool_body_clearance: 约 0.0216 m
+min_tool_basin_clearance: penetration
+</code></pre>
+
+<div class="notice warn">
+<strong>数据解读：</strong>
+<ul>
+  <li>IK 主链能生成整条轨迹。</li>
+  <li>碰撞审计判定工具进入料斗壁或包络（tool_basin clearance 为 penetration）。</li>
+  <li>这条数据不能证明可执行性能，只能作为失败诊断路径性能。</li>
+</ul>
+</div>
+
+<h3>3.2 性能优化路线的分阶段验收目标</h3>
+<p>以下数字不是当前已经达成的结果，而是后续优化的工程目标：</p>
+
+<table>
+  <tr><th>阶段</th><th>目标</th></tr>
+  <tr><td>v1 baseline</td><td>service 可跑、结果可解释</td></tr>
+  <tr><td>v1 safe</td><td>默认安全 YAML <code>success=true</code></td></tr>
+  <tr><td>v1.1</td><td>service 默认工况低于 10 s</td></tr>
+  <tr><td>v1.2</td><td>core benchmark 接近或超过 MEX 6.9 s</td></tr>
+  <tr><td>v2</td><td>解析 IK 或 TRAC-IK 后端低于 3 s</td></tr>
+  <tr><td>v3</td><td>局部重规划和全量碰撞审计仍满足交互式预览</td></tr>
+</table>
+
+<h3>3.3 版本对比口径一览</h3>
+<table>
+  <tr><th>对比维度</th><th>MATLAB</th><th>C++ MEX</th><th>ROS2 C++ 第一版</th></tr>
+  <tr><td>运行环境</td><td>MATLAB 解释器</td><td>MATLAB 进程内</td><td>ROS2 Humble 独立节点</td></tr>
+  <tr><td>IK 求解</td><td>MATLAB ikSolver</td><td>C++ DLS (MEX)</td><td>C++ DLS (rtfg_core)</td></tr>
+  <tr><td>碰撞检测</td><td>MATLAB 几何计算</td><td>FCL (MEX)</td><td>FCL (rtfg_core)</td></tr>
+  <tr><td>IO 开销</td><td>无</td><td>MATLAB struct 封装</td><td>ROS2 service/topic + 序列化</td></tr>
+  <tr><td>适合对比</td><td>—</td><td>Core Benchmark</td><td>Service Benchmark</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>4. 结果分析</h2>
+<!-- ============================================================ -->
+
+<h3>4.1 当前瓶颈分析</h3>
+<p>从默认工况数据可以定位到以下瓶颈：</p>
+<ul>
+  <li><strong>IK 总耗时约 15 s：</strong>占 <code>total_wall_s</code>（~17-18 s）的 83-88%，是主要瓶颈。原因是第一版保留了保守的多阶段 DLS、多种子搜索和候选级碰撞门控策略。</li>
+  <li><strong>碰撞检测约 2.6-2.8 s：</strong>占总量约 15%，包含自碰撞、工具-本体、工具-料斗三个维度的 FCL 距离查询。</li>
+  <li><strong>ROS2 序列化和 topic 发布：</strong>包含 PoseArray、MarkerArray、DisplayTrajectory 等可视化数据的构造和发布，额外增加 ~0.5-1.0 s 开销。</li>
+</ul>
+
+<h3>4.2 优化有效性判断规则</h3>
+<p>一次优化只有在以下所有条件满足时才可以说有效：</p>
+<ul>
+  <li>相同 YAML。</li>
+  <li>相同 current_q。</li>
+  <li>相同 clearance threshold。</li>
+  <li>相同 build type。</li>
+  <li>anchor_count 和 playback_count 基本一致。</li>
+  <li>success/collision 状态一致，或明确解释变化。</li>
+  <li>至少重复 3 次，取中位数。</li>
+</ul>
+
+<div class="notice warn">
+<strong>重要：</strong>如果优化同时改变了轨迹点数或碰撞状态，应分开解释，不能只用总耗时下降证明算法变快。
+</div>
+
+<h3>4.3 优化验证决策流程</h3>
+
+<div class="mermaid">
+flowchart TD
+    A[实验条件设置<br/>YAML / current_q / threshold / build type] --> B[执行 Benchmark]
+    B --> C{Benchmark 类型}
+    C -->|Core| D[直接调用 rtfg_core]
+    C -->|Service| E[调用 /rtfg/fit_preview]
+    D --> F[记录模板字段]
+    E --> F
+    F --> G{与上一版条件一致?}
+    G -->|是| H{重复 >= 3 次}
+    G -->|否| I[不可直接对比<br/>需重新 baseline]
+    H -->|取中位数| J{性能有提升?}
+    H -->|< 3 次| K[数据不足<br/>继续采集]
+    J -->|是| L[确认优化有效]
+    J -->|否| M[优化无效<br/>分析原因]
+    I --> N[更新 baseline 后重新评估]
+</div>
+
+<!-- ============================================================ -->
+<h2>5. 结论与改进效果</h2>
+<!-- ============================================================ -->
+
+<h3>5.1 当前结论</h3>
+<ul>
+  <li><strong>第一版完成 ROS2 C++ 迁移和可测基线。</strong></li>
+  <li><strong>当前默认工况还没有超过历史 MEX 基线。</strong></li>
+  <li>未提升的原因是保守搜索策略、碰撞诊断、ROS2 message 回传和默认参数碰撞。</li>
+  <li>C++ 的优势在于后续可以常驻模型、缓存对象、解析 IK、并行碰撞和轻量化响应。</li>
+</ul>
+
+<div class="notice warn">
+<strong>文档表述要求：</strong>任何对外文档都应保持以上说法。不要写成"ROS2 C++ 已经大幅提升"，因为当前实测不支持这个结论。
+</div>
+
+<h3>5.2 架构升级方向</h3>
+<p>当前 ROS2 C++ 第一版虽然性能尚未超过 MEX 基线，但其架构设计为后续优化奠定了基础：</p>
+<ul>
+  <li><strong>常驻模型：</strong>C++ 节点在生命周期内保持 RobotModel 实例，避免重复 URDF 解析和 KDL/FCL 对象构建。</li>
+  <li><strong>对象缓存：</strong>FCL CollisionObject 使用 <code>thread_local</code> 缓存，后续调用仅更新变换矩阵和 AABB，避免 BVH 树重建。</li>
+  <li><strong>解析 IK 潜力：</strong>可引入 UR10 专用解析 IK（如 TRAC-IK 或 KDL IKFast），替代当前纯数值 DLS 求解器。</li>
+  <li><strong>并行碰撞：</strong>碰撞检测可并行化，利用多核 CPU 加速 O(N^2) 自碰撞查询。</li>
+  <li><strong>轻量化响应：</strong>可配置是否发布 PoseArray、MarkerArray 等可视化数据，降低序列化开销。</li>
+</ul>
+
+<h3>5.3 后续记录规范</h3>
+<p>每次性能实验后，按以下步骤操作：</p>
+<ol>
+  <li>确认实验条件与上一版一致（YAML、current_q、threshold、build type）。</li>
+  <li>使用结构化模板记录所有字段。</li>
+  <li>至少重复 3 次，取中位数作为最终数值。</li>
+  <li>保存 JSON 到 <code>benchmarks/results/</code> 目录。</li>
+  <li>在与 MEX 对比时明确标注使用的是 Core Benchmark 还是 Service Benchmark。</li>
+  <li>结论中区分"算法提升"和"条件变化"带来的性能差异。</li>
+</ol>
+
+<!-- ============================================================ -->
+<div class="nav-links">
+  <a href="../rtfg_ros2_cpp_技术文档/index.html">🏠 返回索引</a>
+  <a href="10_ROS2消息字段与排障手册.html">← 10_ROS2消息字段与排障手册</a>
+</div>
+<footer><p>最后更新: 2026-06-02 | assembly_rtfg_cpp 技术文档 | ROS2 Humble</p></footer>
+
+</div>
+</body>
+</html>

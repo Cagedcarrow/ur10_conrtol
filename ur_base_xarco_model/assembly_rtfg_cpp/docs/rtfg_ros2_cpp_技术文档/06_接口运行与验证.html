@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6. 服务接口与运行验证 — assembly_rtfg_cpp 技术文档</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#58a6ff',lineColor:'#58a6ff',textColor:'#e6edf3'}});</script>
+<style>
+:root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--bg-code:#0d1117;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--accent-purple:#a371f7;--accent-red:#f85149;--border:#30363d;--radius:8px;--font-mono:'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.7;min-height:100vh}
+.main{max-width:1100px;margin:0 auto;padding:2rem 2rem 3rem}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.25rem}
+.subtitle{color:var(--text-secondary);margin-bottom:2rem}
+h2{color:var(--accent-orange);margin:2.5rem 0 1rem;font-size:1.4rem}
+h3{color:var(--accent);margin:1.5rem 0 0.5rem}
+p{margin:0.75rem 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:var(--bg-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.9em;border:1px solid var(--border)}
+pre{background:var(--bg-code);padding:1rem;border-radius:6px;overflow-x:auto;margin:1rem 0;border:1px solid var(--border)}
+pre code{padding:0;border:none;background:none}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid var(--border);padding:0.55rem 0.8rem;text-align:left}
+th{background:var(--bg-secondary);font-weight:600;color:var(--accent)}
+td{font-size:0.95rem}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin:1.25rem 0;overflow-x:auto}
+.notice{border-left:3px solid var(--accent);background:rgba(88,166,255,0.08);padding:0.75rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0}
+.notice.info{border-left-color:var(--accent-green);background:rgba(63,185,80,0.08)}
+.notice.warn{border-left-color:var(--accent-orange);background:rgba(210,153,34,0.08)}
+.nav-links{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.95rem}
+footer{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>6. 服务接口与运行验证</h1>
+<p class="subtitle">3 个 Service 定义、Launch 参数说明、Benchmark 使用方法、验证步骤、Topic 列表</p>
+
+<h2>6.1 研究背景与目标</h2>
+
+<p>将 MATLAB MEX 版本的轨迹生成与 IK 求解管线迁移到独立 ROS2 C++ 包 <code>assembly_rtfg_cpp</code> 后，需要建立一套完整的服务接口层，使外部节点（GUI、脚本、自动化测试）能够以标准 ROS2 Service/Action 机制调用求解管线。</p>
+
+<p>本模块解决以下核心问题：</p>
+<ul>
+  <li><strong>配置加载标准化</strong>：将 runtime YAML 的读取、解析、校验封装为统一的服务接口，消除直接文件 I/O 的耦合</li>
+  <li><strong>轨迹求解服务化</strong>：将 IK 求解、碰撞检测、轨迹回放封装为可远程调用的 Service，支持异步 benchmark 和自动化测试</li>
+  <li><strong>执行通道建立</strong>：通过 <code>FollowJointTrajectory</code> Action 将求解结果下发到 <code>ros2_control</code> 控制器，打通 "求解 -> 执行" 闭环</li>
+  <li><strong>可视化与调试</strong>：发布 TCP 路径、碰撞 Marker、MoveIt DisplayTrajectory，支持 RViz 实时预览</li>
+</ul>
+
+<h2>6.2 服务接口与架构设计</h2>
+
+<h3>6.2.1 系统架构</h3>
+
+<p>下图展示了 <code>rtfg_solver_node</code> 的服务接口、发布话题与外部依赖关系：</p>
+
+<div class="mermaid">
+graph TB
+    subgraph GUI["GUI / Python Script / CLI"]
+        BR["Benchmark Runner<br/>(rtfg_benchmark.py)"]
+        SM["Service Smoke Test"]
+    end
+
+    subgraph SN["rtfg_solver_node"]
+        LC["/rtfg/load_config<br/>Service"]
+        FP["/rtfg/fit_preview<br/>Service"]
+        EC["/rtfg/execute_cached<br/>Service"]
+        TP["/rtfg/target_tcp_poses<br/>PoseArray"]
+        AP["/rtfg/tcp_path<br/>PoseArray"]
+        CM["/rtfg/collision_markers<br/>MarkerArray"]
+        MT["/rtfg/metrics<br/>String"]
+        DT["/display_planned_path<br/>DisplayTrajectory"]
+    end
+
+    subgraph RC["ros2_control"]
+        JTC["joint_trajectory_controller<br/>FollowJointTrajectory Action"]
+        JSB["joint_state_broadcaster"]
+    end
+
+    subgraph RV["RViz / MoveIt"]
+        MD["MoveIt Display"]
+    end
+
+    GUI -->|"call"| LC
+    GUI -->|"call"| FP
+    GUI -->|"call"| EC
+    EC -->|"action"| JTC
+    TP --> MD
+    AP --> MD
+    CM --> MD
+    DT --> MD
+
+    style SN fill:#1c2333,stroke:#58a6ff,stroke-width:2px
+    style RC fill:#1c2333,stroke:#3fb950,stroke-width:2px
+    style RV fill:#1c2333,stroke:#a371f7,stroke-width:2px
+</div>
+
+<h3>6.2.2 三个 Service 定义</h3>
+
+<h4><code>/rtfg/load_config</code> — 配置加载服务</h4>
+<table>
+  <tr><th>属性</th><th>值</th></tr>
+  <tr><td>类型</td><td><code>assembly_rtfg_cpp/srv/LoadConfig</code></td></tr>
+  <tr><td>功能</td><td>读取 runtime YAML 配置文件，解析并返回轨迹参数、环境位姿、URDF ros2_control 中的初始 6 轴关节角及限幅后的参数</td></tr>
+</table>
+
+<p>典型调用命令：</p>
+<pre><code class="language-bash">ros2 service call /rtfg/load_config assembly_rtfg_cpp/srv/LoadConfig "{yaml_path: ''}"</code></pre>
+
+<h4><code>/rtfg/fit_preview</code> — 轨迹拟合预览服务</h4>
+<table>
+  <tr><th>属性</th><th>值</th></tr>
+  <tr><td>类型</td><td><code>assembly_rtfg_cpp/srv/FitPreview</td></tr>
+  <tr><td>功能</td><td>根据请求参数生成目标 TCP → 求解 anchor 关节轨迹 → 生成 playback joint trajectory → 发布目标路径、实际路径、碰撞 marker 和 MoveIt display trajectory → 返回性能计时、clearance、碰撞对象和轨迹 message</td></tr>
+</table>
+
+<p><strong>关键输入参数：</strong></p>
+<table>
+  <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+  <tr><td><code>left_wall_offset</code></td><td>double</td><td>左壁偏移量</td></tr>
+  <tr><td><code>mud_height</code></td><td>double</td><td>泥面高度</td></tr>
+  <tr><td><code>approach_len</code></td><td>double</td><td>趋近长度</td></tr>
+  <tr><td><code>theta_deg</code></td><td>double</td><td>偏转角度 (度)</td></tr>
+  <tr><td><code>depth</code></td><td>double</td><td>挖掘深度</td></tr>
+  <tr><td><code>x_plane</code></td><td>double</td><td>平面 X 位置</td></tr>
+  <tr><td><code>pose_x / pose_y / pose_z</code></td><td>double</td><td>TCP 目标位置</td></tr>
+  <tr><td><code>roll_deg / pitch_deg / yaw_deg</code></td><td>double</td><td>TCP 目标姿态 (度)</td></tr>
+  <tr><td><code>current_q</code></td><td>double[6]</td><td>当前关节角</td></tr>
+  <tr><td><code>clearance_threshold</code></td><td>double</td><td>碰撞容忍阈值</td></tr>
+</table>
+
+<p><strong>关键输出字段：</strong></p>
+<table>
+  <tr><th>输出</th><th>类型</th><th>说明</th></tr>
+  <tr><td><code>success</code></td><td>bool</td><td>求解是否成功（无碰撞违规）</td></tr>
+  <tr><td><code>message</code></td><td>string</td><td>状态信息</td></tr>
+  <tr><td><code>trajectory</code></td><td>JointTrajectory</td><td>完整关节轨迹</td></tr>
+  <tr><td><code>target_tcp_poses</code></td><td>Pose[]</td><td>目标 TCP 位姿序列</td></tr>
+  <tr><td><code>actual_tcp_poses</code></td><td>Pose[]</td><td>实际拟合 TCP 位姿序列</td></tr>
+  <tr><td><code>collision_points</code></td><td>Pose[]</td><td>碰撞点位置</td></tr>
+  <tr><td><code>anchor_count</code></td><td>uint32</td><td>锚点数量</td></tr>
+  <tr><td><code>playback_count</code></td><td>uint32</td><td>回放点数量</td></tr>
+  <tr><td><code>timing_total_wall_s</code></td><td>double</td><td>总耗时 (秒)</td></tr>
+  <tr><td><code>timing_ik_total_s</code></td><td>double</td><td>IK 求解总耗时 (秒)</td></tr>
+  <tr><td><code>timing_collision_total_s</code></td><td>double</td><td>碰撞检测总耗时 (秒)</td></tr>
+  <tr><td><code>min_self_clearance</code></td><td>double</td><td>最小自碰撞距离</td></tr>
+  <tr><td><code>min_tool_body_clearance</code></td><td>double</td><td>最小工具-本体距离</td></tr>
+  <tr><td><code>min_tool_basin_clearance</code></td><td>double</td><td>最小工具-料斗距离</td></tr>
+  <tr><td><code>first_collision_type</code></td><td>string</td><td>首次碰撞类型</td></tr>
+  <tr><td><code>first_collision_object</code></td><td>string</td><td>首次碰撞对象</td></tr>
+</table>
+
+<h4><code>/rtfg/execute_cached</code> — 缓存轨迹执行服务</h4>
+<table>
+  <tr><th>属性</th><th>值</th></tr>
+  <tr><td>类型</td><td><code>assembly_rtfg_cpp/srv/ExecuteCached</td></tr>
+  <tr><td>功能</td><td>执行最近一次成功拟合并缓存的轨迹，通过 <code>FollowJointTrajectory</code> action 发送到 <code>/rtfg/joint_trajectory_controller/follow_joint_trajectory</code></td></tr>
+</table>
+
+<div class="notice warn">
+  <strong>注意：</strong>如果最近一次 <code>/rtfg/fit_preview</code> 有碰撞违规，节点不会把它视为可执行成功轨迹，<code>/rtfg/execute_cached</code> 将拒绝执行。
+</div>
+
+<h3>6.2.3 Published Topics</h3>
+
+<table>
+  <tr><th>Topic</th><th>类型</th><th>用途</th></tr>
+  <tr><td><code>/rtfg/target_tcp_poses</code></td><td><code>geometry_msgs/PoseArray</code></td><td>目标 TCP 位姿序列</td></tr>
+  <tr><td><code>/rtfg/tcp_path</code></td><td><code>geometry_msgs/PoseArray</code></td><td>拟合后的实际 TCP 路径</td></tr>
+  <tr><td><code>/rtfg/collision_markers</code></td><td><code>visualization_msgs/MarkerArray</code></td><td>碰撞点和 clearance Marker</td></tr>
+  <tr><td><code>/rtfg/metrics</code></td><td><code>std_msgs/String</code></td><td>JSON 风格性能摘要</td></tr>
+  <tr><td><code>/display_planned_path</code></td><td><code>moveit_msgs/DisplayTrajectory</code></td><td>RViz MoveIt 显示预览</td></tr>
+</table>
+
+<h3>6.2.4 Launch 配置</h3>
+
+<p><strong>完整启动（含 RViz）：</strong></p>
+<pre><code class="language-bash">ros2 launch assembly_rtfg_cpp rtfg_sim.launch.py launch_rviz:=true</code></pre>
+
+<p><strong>无 RViz、无 MoveIt 的 smoke 测试模式：</strong></p>
+<pre><code class="language-bash">ros2 launch assembly_rtfg_cpp rtfg_sim.launch.py launch_rviz:=false launch_moveit:=false</code></pre>
+
+<p><strong>Launch 文件执行流程：</strong></p>
+<ol>
+  <li>展开 <code>assembly_rtfg.urdf.xacro</code> 生成 URDF</li>
+  <li>启动 <code>robot_state_publisher</code></li>
+  <li>在 <code>/rtfg</code> namespace 下启动 <code>ros2_control_node</code></li>
+  <li>加载 <code>joint_state_broadcaster</code></li>
+  <li>加载 <code>joint_trajectory_controller</code></li>
+  <li>可选启动 <code>move_group</code></li>
+  <li>可选启动 RViz</li>
+  <li>启动 <code>rtfg_solver_node</code></li>
+</ol>
+
+<div class="notice info">
+  <strong>设计决策：</strong>控制器使用 <code>/rtfg</code> namespace 是为了避免和当前工作区已有的全局 <code>/controller_manager</code> 冲突，确保多包共存场景下的命名隔离。
+</div>
+
+<h3>6.2.5 构建命令</h3>
+<pre><code class="language-bash">source /opt/ros/humble/setup.bash
+source /home/liuxiaopeng/ws_moveit2/install/setup.bash 2>/dev/null || true
+colcon build --symlink-install --packages-select assembly_rtfg_cpp --cmake-args -DCMAKE_BUILD_TYPE=Release</code></pre>
+
+<h2>6.3 验证与 Benchmark</h2>
+
+<h3>6.3.1 几何回归测试</h3>
+<pre><code class="language-bash">source install/setup.bash
+ros2 run assembly_rtfg_cpp rtfg_geometry_check</code></pre>
+<p>期望输出包含：</p>
+<pre><code>target_poses=273
+radius=0.389029
+vertical_penetration=0.05212</code></pre>
+<p>该测试验证轨迹几何与当前 runtime YAML 派生值的一致性，确保算法迁移过程未破坏核心几何约束。</p>
+
+<h3>6.3.2 Service Smoke 测试</h3>
+<p>单独启动节点：</p>
+<pre><code class="language-bash">ros2 run assembly_rtfg_cpp rtfg_solver_node</code></pre>
+<p>另一终端调用配置加载服务：</p>
+<pre><code class="language-bash">ros2 service call /rtfg/load_config assembly_rtfg_cpp/srv/LoadConfig "{yaml_path: ''}"</code></pre>
+<p>如果返回 <code>success: true</code> 且 <code>initial_q</code> 包含 6 个关节角值，说明 YAML 解析、URDF 加载和服务注册均正常。</p>
+
+<h3>6.3.3 Benchmark 使用方法</h3>
+<p>启动 node 后运行：</p>
+<pre><code class="language-bash">python3 install/assembly_rtfg_cpp/share/assembly_rtfg_cpp/benchmarks/rtfg_benchmark.py</code></pre>
+<p>脚本依次调用 <code>/rtfg/load_config</code> 和 <code>/rtfg/fit_preview</code>，输出 JSON 格式的 benchmark 结果。</p>
+
+<div class="notice warn">
+  <strong>说明：</strong>当前默认参数下 <code>success</code> 可能为 <code>false</code>，因为碰撞审计发现 tool-basin penetration。Benchmark 仍然有效——它衡量的是完整求解、审计和回传路径的耗时，而非仅统计成功案例。
+</div>
+
+<p><strong>第二阶段脚本：按工况输出</strong></p>
+<pre><code class="language-bash"># diagnostic 工况（默认参数，可能存在碰撞）
+python3 install/assembly_rtfg_cpp/share/assembly_rtfg_cpp/benchmarks/rtfg_benchmark.py \
+  --output-tag diagnostic \
+  --yaml /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_rtfg_cpp/config/environment_runtime_config.yaml
+
+# safe 工况（无碰撞参数）
+python3 install/assembly_rtfg_cpp/share/assembly_rtfg_cpp/benchmarks/rtfg_benchmark.py \
+  --output-tag safe \
+  --yaml /home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_rtfg_cpp/config/environment_runtime_config_safe.yaml</code></pre>
+<p>结果输出文件：</p>
+<ul>
+  <li><code>rtfg_ros2_cpp_benchmark_diagnostic.json</code> / <code>.csv</code></li>
+  <li><code>rtfg_ros2_cpp_benchmark_safe.json</code> / <code>.csv</code></li>
+</ul>
+
+<h2>6.4 当前验收状态</h2>
+
+<table>
+  <tr><th>验收项</th><th>状态</th></tr>
+  <tr><td>新建独立 ROS2 C++ 包</td><td>已完成</td></tr>
+  <tr><td>复制 MATLAB URDF/mesh</td><td>已完成</td></tr>
+  <tr><td>保留 <code>sensor_shovel_tcp</code> tip</td><td>已完成</td></tr>
+  <tr><td>轨迹生成迁移</td><td>已完成</td></tr>
+  <tr><td>IK/拟合 C++ 化</td><td>已完成第一版</td></tr>
+  <tr><td>FCL 碰撞检测</td><td>已完成第一版</td></tr>
+  <tr><td>Services/Topics</td><td>已完成</td></tr>
+  <tr><td>Fake ros2_control Launch</td><td>已完成</td></tr>
+  <tr><td>RViz/MoveIt Display 输出</td><td>已完成</td></tr>
+  <tr><td>几何回归测试</td><td>已通过</td></tr>
+  <tr><td>默认参数无碰撞执行</td><td>未完成，当前发现 tool-basin penetration</td></tr>
+  <tr><td>Safe 参数无碰撞执行</td><td>已完成（<code>fit_preview success=true</code>）</td></tr>
+  <tr><td>性能大幅超过 MEX</td><td>未完成，当前第一版慢于历史 MEX</td></tr>
+</table>
+
+<h2>6.5 结果分析与瓶颈定位</h2>
+
+<h3>6.5.1 已知运行警告</h3>
+<p>KDL 在启动时输出以下信息：</p>
+<pre><code>The root link base_jizuo has an inertia specified in the URDF,
+but KDL does not support a root link with an inertia.</code></pre>
+<p>这是 KDL 对 root link 含有 inertia 的常见警告，不影响当前 FK/IK 链的建立。后续若需消除，可在 URDF 顶部增加 dummy root link，将 inertia 移至非 root link。</p>
+
+<h3>6.5.2 瓶颈分析</h3>
+<ul>
+  <li><strong>碰撞检测性能</strong>：第一版 FCL 碰撞检测尚未应用 <code>thread_local</code> 缓存优化，每次碰撞查询均需重建 BVH，导致耗时高于 MEX 版本的缓存机制</li>
+  <li><strong>IK 求解效率</strong>：阻尼最小二乘法 (DLS) 的 60 次迭代上限和 8 步停滞检测逻辑与 MEX 版本一致，但 ROS2 服务调用的序列化/反序列化开销增加了每次请求的 latency</li>
+  <li><strong>tool-basin penetration</strong>：默认 runtime 参数下存在 tool-basin 穿透，表明参数空间仍需调优——这不是算法问题，而是参数配置问题</li>
+  <li><strong>稀疏审计策略</strong>：当前仅在锚点处进行碰撞审计，未对所有 playback 点做全量检测，存在潜在的漏报风险</li>
+</ul>
+
+<h2>6.6 结论与改进路线</h2>
+
+<h3>6.6.1 当前效果总结</h3>
+<p><code>assembly_rtfg_cpp</code> 包已成功建立完整的服务接口层和运行验证体系：</p>
+<ul>
+  <li>3 个 Service 覆盖配置加载、轨迹拟合预览、缓存执行全流程</li>
+  <li>5 个 Published Topic 提供可视化与性能监控能力</li>
+  <li>Launch 文件支持 RViz/MoveIt 可选启动，namespace 隔离避免与现有工作区冲突</li>
+  <li>几何回归测试通过（<code>target_poses=273</code>、<code>radius=0.389029</code>、<code>vertical_penetration=0.05212</code>）</li>
+  <li>Safe 参数配置下可实现无碰撞轨迹执行</li>
+</ul>
+
+<h3>6.6.2 下一步验证与优化建议</h3>
+<ol>
+  <li><strong>参数调优</strong>：先调整默认 runtime 参数，使 <code>/rtfg/fit_preview</code> 返回无 tool-basin penetration 的结果</li>
+  <li><strong>分工况 Benchmark</strong>：对无碰撞参数记录新的 benchmark 数据，与当前碰撞参数分开比较，建立性能基线</li>
+  <li><strong>全量碰撞审计</strong>：增加对所有 playback 点的碰撞检测测试，确认稀疏审计策略没有漏报</li>
+  <li><strong>自动化 Smoke Test</strong>：增加 ROS2 Launch 级别的自动化测试，验证 controller action 可正常执行</li>
+  <li><strong>性能优化</strong>：进入 IK 后端和响应序列化的性能优化阶段，目标是在第二阶段超过历史 MEX 版本的性能</li>
+</ol>
+
+<div class="nav-links">
+  <a href="../rtfg_ros2_cpp_技术文档/index.html">🏠 返回索引</a>
+  <a href="05_Cpp性能基准与优化记录.html">← 05_Cpp性能基准与优化记录</a>
+  <a href="07_源码模块清单与迁移对照.html">07_源码模块清单与迁移对照 →</a>
+</div>
+
+<footer><p>最后更新: 2026-06-02 | assembly_rtfg_cpp 技术文档 | ROS2 Humble</p></footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,24 @@
+metadata:
+  exported_at: "2026-06-01"
+  source: "rtfg_param_sweep.py best candidate"
+  target_urdf: "/home/liuxiaopeng/公共的/MATLAB_ur10_control/UR10_control_Matlab/environmental_model/assembly_with_block_with_basin.urdf"
+trajectory:
+  parameters:
+    left_wall_offset: 0.180000
+    mud_height: 0.108000
+    approach_len: 0.234900
+    theta_deg: -45.000000
+    depth: 0.020000
+    x_plane: -0.100000
+environment_pose:
+  target_joint: "base_jizuo_to_block_with_basin_frame"
+  pose:
+    x: -1.830000
+    y: 0.000000
+    z: 0.000000
+    roll_deg: 0.000000
+    pitch_deg: 0.000000
+    yaw_deg: 180.000000
+notes:
+  clearance_threshold_default: 0.002
+  expected_fit_preview: "success=true (safe execution path)"

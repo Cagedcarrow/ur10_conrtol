@@ -1,0 +1,17 @@
+string yaml_path
+---
+bool success
+string message
+float64 left_wall_offset
+float64 mud_height
+float64 approach_len
+float64 theta_deg
+float64 depth
+float64 x_plane
+float64 pose_x
+float64 pose_y
+float64 pose_z
+float64 roll_deg
+float64 pitch_deg
+float64 yaw_deg
+float64[] initial_q

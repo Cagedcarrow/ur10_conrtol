@@ -1,0 +1,2 @@
+success,message,anchor_count,playback_count,timing_total_wall_s,timing_ik_total_s,timing_collision_total_s,timing_avg_per_pose_s,min_self_clearance,min_tool_body_clearance,min_tool_basin_clearance,min_tool_basin_object,yaml_path,clearance_threshold
+False,第 61/276 个目标位姿 ROS2 C++ 求解失败 [圆弧]，位置误差 0.000668936 m，姿态误差 14.0798 deg，clearance -1 m，clearance 违规对象: block_basin_left_wall,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_rtfg_cpp/config/environment_runtime_config_safe.yaml,0.002

@@ -1,0 +1,16 @@
+{
+  "success": false,
+  "message": "trajectory solved but collision audit found violations",
+  "anchor_count": 273,
+  "playback_count": 1340,
+  "timing_total_wall_s": 25.700129919,
+  "timing_ik_total_s": 23.112625823000002,
+  "timing_collision_total_s": 2.586233765,
+  "timing_avg_per_pose_s": 0.08466163305128206,
+  "min_self_clearance": 0.01768954118142785,
+  "min_tool_body_clearance": 0.028496174052956107,
+  "min_tool_basin_clearance": -1.0,
+  "min_tool_basin_object": "block_basin_left_wall",
+  "yaml_path": "/home/liuxiaopeng/ur10_conrtol/ur_base_xarco_model/assembly_rtfg_cpp/config/environment_runtime_config.yaml",
+  "clearance_threshold": 0.002
+}

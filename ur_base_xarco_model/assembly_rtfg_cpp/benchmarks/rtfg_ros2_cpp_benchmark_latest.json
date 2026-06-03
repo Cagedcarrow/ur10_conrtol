@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "message": "ok",
+  "anchor_count": 273,
+  "playback_count": 1322,
+  "timing_total_wall_s": 303.31665858,
+  "timing_ik_total_s": 276.042121714,
+  "timing_collision_total_s": 27.272817419,
+  "timing_avg_per_pose_s": 1.011143302981685,
+  "min_self_clearance": 0.017838678009144692,
+  "min_tool_body_clearance": 0.028496173874748756,
+  "min_tool_basin_clearance": 1.4835551491704464,
+  "min_tool_basin_object": "block_basin_left_wall",
+  "clearance_threshold": 0.002
+}

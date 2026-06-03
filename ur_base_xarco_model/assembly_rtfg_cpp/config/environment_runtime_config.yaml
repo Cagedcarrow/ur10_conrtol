@@ -1,0 +1,43 @@
+metadata:
+  exported_at: "2026-05-28 09:32:49"
+  source_gui: "main_realtime_trajectory_fit_gui"
+  target_urdf: "/home/liuxiaopeng/公共的/MATLAB_ur10_control/UR10_control_Matlab/environmental_model/assembly_with_block_with_basin.urdf"
+trajectory:
+  parameters:
+    left_wall_offset: 0.195334
+    mud_height: 0.108000
+    approach_len: 0.234900
+    theta_deg: -30.000000
+    depth: 0.052120
+    x_plane: -0.005312
+  derived_values:
+    approach_start_point_xyz: [-0.005312, -0.255095, 0.475450]
+    entry_point_xyz: [-0.005312, -0.051666, 0.358000]
+    arc_end_point_xyz: [-0.005312, 0.142848, 0.305880]
+    approach_length: 0.234900
+    arc_radius: 0.389029
+    vertical_penetration: 0.052120
+    dist_x_negative_wall: 0.311688
+    dist_x_positive_wall: 0.052312
+environment_pose:
+  target_joint: "base_jizuo_to_block_with_basin_frame"
+  pose:
+    x: -1.830000
+    y: 0.000000
+    z: 0.000000
+    roll_deg: 0.000000
+    pitch_deg: 0.000000
+    yaw_deg: 180.000000
+meanings:
+  left_wall_offset: "入泥点到左侧壁的水平距离，单位 m"
+  mud_height: "泥面距盆底的高度，单位 m"
+  approach_len: "起始运动点到入泥点的斜线长度，单位 m"
+  theta_deg: "入泥角，负值表示向下切入，单位 deg"
+  depth: "入泥点相对泥面的实际垂直下扎深度，单位 m"
+  x_plane: "当前 YOZ 轨迹所在的世界 X 截面位置，单位 m"
+  x: "block_with_basin 相对 base_jizuo 的 X 平移，单位 m"
+  y: "block_with_basin 相对 base_jizuo 的 Y 平移，单位 m"
+  z: "block_with_basin 相对 base_jizuo 的 Z 平移，单位 m"
+  roll_deg: "绕 X 轴旋转，单位 deg"
+  pitch_deg: "绕 Y 轴旋转，单位 deg"
+  yaw_deg: "绕 Z 轴旋转，单位 deg"

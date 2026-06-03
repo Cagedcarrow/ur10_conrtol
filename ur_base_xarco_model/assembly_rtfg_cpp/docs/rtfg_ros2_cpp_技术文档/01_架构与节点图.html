@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. ROS2 节点架构与数据流 — assembly_rtfg_cpp 技术文档</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#58a6ff',lineColor:'#58a6ff',textColor:'#e6edf3'}});</script>
+<style>
+:root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--bg-code:#0d1117;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--accent-purple:#a371f7;--accent-red:#f85149;--border:#30363d;--radius:8px;--font-mono:'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.7;min-height:100vh}
+.main{max-width:1100px;margin:0 auto;padding:2rem 2rem 3rem}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.25rem}
+.subtitle{color:var(--text-secondary);margin-bottom:2rem}
+h2{color:var(--accent-orange);margin:2.5rem 0 1rem;font-size:1.4rem}
+h3{color:var(--accent);margin:1.5rem 0 0.5rem}
+p{margin:0.75rem 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:var(--bg-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.9em;border:1px solid var(--border)}
+pre{background:var(--bg-code);padding:1rem;border-radius:6px;overflow-x:auto;margin:1rem 0;border:1px solid var(--border)}
+pre code{padding:0;border:none;background:none}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid var(--border);padding:0.55rem 0.8rem;text-align:left}
+th{background:var(--bg-secondary);font-weight:600;color:var(--accent)}
+td{font-size:0.95rem}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin:1.25rem 0;overflow-x:auto}
+.notice{border-left:3px solid var(--accent);background:rgba(88,166,255,0.08);padding:0.75rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0}
+.notice.info{border-left-color:var(--accent-green);background:rgba(63,185,80,0.08)}
+.nav-links{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.95rem}
+footer{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>1. ROS2 节点架构与数据流</h1>
+<p class="subtitle">包结构、ROS2 节点图、数据流、服务/话题接口、求解链组装、与 MATLAB 架构对比</p>
+
+<!-- ================================================================== -->
+<h2>1. 研究背景/目标</h2>
+<!-- ================================================================== -->
+
+<p>MATLAB <code>realtime_trajectory_fit_gui</code> 的核心工作流是：读取环境与轨迹参数，生成料斗局部 YOZ 平面轨迹，将其变换到 UR10 基坐标，构造每个 TCP 目标姿态，使用 C++ MEX 求解连续关节轨迹，最后在 MATLAB GUI 中预览、碰撞检查和回放。该流程依赖 MATLAB 运行时、GUI 回调框架和 MEX 编译链路，无法直接嵌入 ROS2 生态。</p>
+
+<p>ROS2 第一版的目标是将这套算法从 MATLAB/MEX 环境完整迁移到 ROS2 C++ 原生节点，实现以下设计目标：</p>
+<ul>
+  <li><strong>脱 MATLAB 运行</strong>：不再依赖 MATLAB 解释器和 MEX 编译链路，所有计算在 ROS2 节点内完成</li>
+  <li><strong>服务化接口</strong>：将 MATLAB GUI 的按钮回调映射为 ROS2 服务，使后续 GUI、网页前端、Python 客户端或任务调度器都能调用同一套服务</li>
+  <li><strong>RViz/MoveIt 可视化</strong>：用 RViz PoseArray、MarkerArray、MoveIt DisplayTrajectory 替代 MATLAB 绘图</li>
+  <li><strong>独立验证台</strong>：不修改现有 <code>assembly_rviz_tcp_control</code>，不覆盖已有 <code>assembly_description</code> 或 <code>assembly_moveit_config</code>，新增独立 ament C++ 包作为迁移阶段的独立验证台</li>
+</ul>
+
+<div class="notice">
+  <strong>设计边界：</strong>第一版故意不做完整 GUI 克隆。迁移优先级是把算法从 MATLAB/MEX 迁到 ROS2 C++，并能用服务、RViz 和 fake controller 验证。后续如果需要 GUI，可以在这个服务层上增加 Qt、rqt、web 或 RViz panel，而不再把轨迹/IK/碰撞逻辑嵌入界面。
+</div>
+
+<!-- ================================================================== -->
+<h2>2. 算法/架构设计</h2>
+<!-- ================================================================== -->
+
+<h3>2.1 包结构</h3>
+
+<p><code>assembly_rtfg_cpp</code> 包内部复制 MATLAB 版 URDF 和 meshes，建立自己的 SRDF、MoveIt 参数、ros2_control fake hardware 和 RViz 配置。目录结构如下：</p>
+
+<pre><code class="language-plaintext">assembly_rtfg_cpp/
+  CMakeLists.txt
+  package.xml
+  include/assembly_rtfg_cpp/
+    types.h
+    utils.h
+    robot_model.h
+    ik_solver.h
+    collision_checker.h
+    trajectory_solver.h
+    trajectory_generator.h
+  src/
+    utils.cpp
+    robot_model.cpp
+    ik_solver.cpp
+    collision_checker.cpp
+    trajectory_solver.cpp
+    trajectory_generator.cpp
+    rtfg_solver_node.cpp
+  srv/
+    LoadConfig.srv
+    FitPreview.srv
+    ExecuteCached.srv
+  urdf/
+    assembly_rtfg.urdf.xacro
+    assembly_rtfg_solver.urdf
+    meshes/
+  config/
+    environment_runtime_config.yaml
+    assembly_rtfg.srdf
+    ros2_controllers.yaml
+    moveit_controllers.yaml
+    joint_limits.yaml
+    kinematics.yaml
+    ompl_planning.yaml
+  launch/
+    rtfg_sim.launch.py
+  rviz/
+    rtfg_view.rviz
+  benchmarks/
+    rtfg_benchmark.py
+  docs/
+    rtfg_ros2_cpp_技术文档/
+</code></pre>
+
+<h3>2.2 ROS2 节点图</h3>
+
+<p>下图展示了第一版唯一的业务节点 <code>rtfg_solver_node</code> 及其服务、话题和外部节点之间的完整关系：</p>
+
+<div class="mermaid">
+flowchart LR
+  YAML["config/environment_runtime_config.yaml"] --> NODE["/rtfg_solver_node"]
+  SOLVER_URDF["urdf/assembly_rtfg_solver.urdf"] --> NODE
+  NODE --> LOAD["/rtfg/load_config"]
+  NODE --> FIT["/rtfg/fit_preview"]
+  NODE --> EXEC["/rtfg/execute_cached"]
+  NODE --> TARGET["/rtfg/target_tcp_poses"]
+  NODE --> PATH["/rtfg/tcp_path"]
+  NODE --> MARKER["/rtfg/collision_markers"]
+  NODE --> METRICS["/rtfg/metrics"]
+  NODE --> DISPLAY["/display_planned_path"]
+  EXEC --> JTC["/rtfg/joint_trajectory_controller/follow_joint_trajectory"]
+  XACRO["urdf/assembly_rtfg.urdf.xacro"] --> RSP["robot_state_publisher"]
+  XACRO --> CM["/rtfg/controller_manager"]
+  CM --> JSB["/rtfg/joint_state_broadcaster"]
+  CM --> JTC
+  DISPLAY --> RVIZ["RViz MoveIt Display"]
+  TARGET --> RVIZ
+  PATH --> RVIZ
+  MARKER --> RVIZ
+</div>
+
+<h3>2.3 节点运行时职责</h3>
+
+<p><code>rtfg_solver_node</code> 把 MATLAB GUI 中分散在按钮回调、状态结构体和 MEX 调用里的逻辑合并成 ROS2 服务，运行时职责包括：</p>
+<ul>
+  <li>启动时定位包内默认 YAML、solver URDF 和 mesh 目录</li>
+  <li>用 urdfdom 解析 URDF，建立 <code>base_jizuo → sensor_shovel_tcp</code> 的运动学链</li>
+  <li>用 KDL 解析 <code>base_jizuo → ur10_wrist_3</code> 的六轴链，保留固定工具偏置</li>
+  <li>读取 runtime YAML 中的轨迹参数、环境位姿和 URDF 初始关节角</li>
+  <li>调用 <code>buildTargetPlan</code> 生成目标 TCP 序列</li>
+  <li>调用 <code>solveTrajectory</code> 求解关节锚点和回放轨迹</li>
+  <li>发布目标 TCP、实际 TCP、碰撞 marker、性能 metrics 和 MoveIt display trajectory</li>
+  <li>缓存最近一次拟合成功且无碰撞违规的 trajectory，供 <code>/rtfg/execute_cached</code> 执行</li>
+</ul>
+
+<h3>2.4 数据流</h3>
+
+<p>第一版数据流是明确的单向管线，共 8 个阶段：</p>
+<ol>
+  <li><strong>LoadConfig</strong> — 读取 YAML 和 URDF 初始关节角</li>
+  <li><strong>FitPreview</strong> — 接收显式参数；如果字段为空或当前关节角为空，则回退到默认配置</li>
+  <li><strong>clampTrajectoryParams</strong> — 对输入参数做料斗几何约束，防止生成明显越界的几何轨迹</li>
+  <li><strong>buildTargetPlan</strong> — 生成目标点、目标齐次变换和段名</li>
+  <li><strong>buildBasinCollisionBoxes</strong> — 生成料斗 wall/floor 的 FCL 盒模型</li>
+  <li><strong>solveTrajectory</strong> — 逐点 IK，生成 anchor 关节序列</li>
+  <li><strong>solveTrajectory</strong> — 生成 quintic playback 轨迹并进行稀疏碰撞审计</li>
+  <li><strong>节点输出</strong> — 把结果转换为 ROS2 message，发布到 RViz/MoveIt topic</li>
+</ol>
+
+<h3>2.5 模型边界</h3>
+
+<p>新包内包含两份模型文件，分别服务于不同用途：</p>
+<table>
+  <tr><th>模型文件</th><th>用途</th><th>Mesh 路径</th></tr>
+  <tr>
+    <td><code>assembly_rtfg.urdf.xacro</code></td>
+    <td>ROS2 runtime、robot_state_publisher、ros2_control、MoveIt</td>
+    <td><code>package://assembly_rtfg_cpp/urdf/meshes</code></td>
+  </tr>
+  <tr>
+    <td><code>assembly_rtfg_solver.urdf</code></td>
+    <td>C++ solver 直接读取（避免 package URI 解析）</td>
+    <td>相对路径</td>
+  </tr>
+</table>
+
+<div class="notice info">
+  <strong>SRDF 定义：</strong>group <code>assembly_rtfg_manipulator</code>，base 为 <code>base_jizuo</code>，tip 为 <code>sensor_shovel_tcp</code>。该选择与 MATLAB 版尖端点拟合一致，避免用 UR10 wrist link 作为工具端导致轨迹误差。
+</div>
+
+<h3>2.6 核心模块与求解链组装</h3>
+
+<p>求解链由 <code>rtfg_core</code> 库中的以下模块按阶段组装：</p>
+<table>
+  <tr><th>模块</th><th>头文件</th><th>源文件</th><th>职责</th></tr>
+  <tr>
+    <td><strong>types</strong></td>
+    <td><code>types.h</code></td>
+    <td>—</td>
+    <td>Eigen / KDL / FCL 类型别名、联合体、配置结构体</td>
+  </tr>
+  <tr>
+    <td><strong>utils</strong></td>
+    <td><code>utils.h</code></td>
+    <td><code>utils.cpp</code></td>
+    <td>位姿误差、连续性代价、五次多项式混合、关节增量包裹、旋转距离</td>
+  </tr>
+  <tr>
+    <td><strong>robot_model</strong></td>
+    <td><code>robot_model.h</code></td>
+    <td><code>robot_model.cpp</code></td>
+    <td>URDF → KDL Tree + FCL Geometry 解析、正运动学、数值雅可比、关节限位、等效构型对齐</td>
+  </tr>
+  <tr>
+    <td><strong>ik_solver</strong></td>
+    <td><code>ik_solver.h</code></td>
+    <td><code>ik_solver.cpp</code></td>
+    <td>阻尼最小二乘法 (DLS) IK 求解、局部/全局种子列表构造</td>
+  </tr>
+  <tr>
+    <td><strong>collision_checker</strong></td>
+    <td><code>collision_checker.h</code></td>
+    <td><code>collision_checker.cpp</code></td>
+    <td>FCL 自碰撞/工具-本体/工具-料斗距离查询</td>
+  </tr>
+  <tr>
+    <td><strong>trajectory_solver</strong></td>
+    <td><code>trajectory_solver.h</code></td>
+    <td><code>trajectory_solver.cpp</code></td>
+    <td>主编排器：种子调度 → 锚点 IK → quintic 回放 → 稀疏碰撞审计</td>
+  </tr>
+  <tr>
+    <td><strong>trajectory_generator</strong></td>
+    <td><code>trajectory_generator.h</code></td>
+    <td><code>trajectory_generator.cpp</code></td>
+    <td>YOZ 三段轨迹生成、参数限幅、2D→3D 提升、环境位姿变换、TCP 姿态构造</td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2>3. 对比效果</h2>
+<!-- ================================================================== -->
+
+<h3>3.1 MATLAB GUI 与 ROS2 服务接口对照</h3>
+
+<p>MATLAB GUI 版本通过 action dispatcher 或回调分派不同按钮逻辑。ROS2 第一版没有复制 GUI，而是把这些 action 映射成独立服务：</p>
+
+<table>
+  <tr><th>MATLAB GUI 动作</th><th>ROS2 服务/Topic</th><th>说明</th></tr>
+  <tr>
+    <td>读取 runtime YAML</td>
+    <td><code>/rtfg/load_config</code></td>
+    <td>加载配置参数和初始关节角</td>
+  </tr>
+  <tr>
+    <td>生成并显示目标轨迹</td>
+    <td><code>/rtfg/fit_preview</code> + <code>/rtfg/target_tcp_poses</code></td>
+    <td>生成目标 TCP 序列并发布 PoseArray</td>
+  </tr>
+  <tr>
+    <td>拟合关节轨迹</td>
+    <td><code>/rtfg/fit_preview</code> 返回 <code>JointTrajectory</code></td>
+    <td>IK 求解 + quintic 回放</td>
+  </tr>
+  <tr>
+    <td>显示实际 TCP path</td>
+    <td><code>/rtfg/tcp_path</code></td>
+    <td>发布回放轨迹的 TCP 路径</td>
+  </tr>
+  <tr>
+    <td>显示碰撞点</td>
+    <td><code>/rtfg/collision_markers</code></td>
+    <td>MarkerArray 显示碰撞位置和 clearance</td>
+  </tr>
+  <tr>
+    <td>查看耗时</td>
+    <td><code>/rtfg/metrics</code></td>
+    <td>发布各阶段耗时统计</td>
+  </tr>
+  <tr>
+    <td>执行最近一次轨迹</td>
+    <td><code>/rtfg/execute_cached</code></td>
+    <td>将缓存的轨迹发送给 controller</td>
+  </tr>
+</table>
+
+<h3>3.2 架构迁移对比</h3>
+
+<table>
+  <tr><th>维度</th><th>MATLAB 版</th><th>ROS2 C++ 第一版</th></tr>
+  <tr>
+    <td>运行环境</td>
+    <td>MATLAB + MEX (.mexa64)</td>
+    <td>ROS2 Humble, 独立 ament 节点</td>
+  </tr>
+  <tr>
+    <td>主入口</td>
+    <td><code>main_realtime_trajectory_fit_gui.m</code> (GUI)</td>
+    <td><code>rtfg_solver_node</code> + 3 个 service</td>
+  </tr>
+  <tr>
+    <td>轨迹生成</td>
+    <td><code>generate_trajectory_yoz.m</code> + <code>generate_trajectory_3d.m</code></td>
+    <td><code>trajectory_generator.cpp::buildTargetPlan</code></td>
+  </tr>
+  <tr>
+    <td>运动学求解</td>
+    <td><code>rtfg_kinematics.m</code> + MEX <code>trajectory_solver.cpp</code></td>
+    <td><code>robot_model.cpp</code> + <code>ik_solver.cpp</code> + <code>trajectory_solver.cpp</code> (普通 C++ library)</td>
+  </tr>
+  <tr>
+    <td>碰撞检测</td>
+    <td>MATLAB 几何审计</td>
+    <td><code>collision_checker.cpp</code> + FCL</td>
+  </tr>
+  <tr>
+    <td>可视化</td>
+    <td>MATLAB 绘图</td>
+    <td>RViz PoseArray / MarkerArray / MoveIt DisplayTrajectory</td>
+  </tr>
+  <tr>
+    <td>控制器接口</td>
+    <td>MATLAB ROS Toolbox</td>
+    <td>ros2_control + fake controller / real hardware</td>
+  </tr>
+  <tr>
+    <td>可扩展性</td>
+    <td>绑定 MATLAB GUI 线程</td>
+    <td>服务层可被任意客户端调用（Qt / rqt / web / Python）</td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2>4. 结果分析</h2>
+<!-- ================================================================== -->
+
+<h3>4.1 架构分析</h3>
+
+<p>从架构角度看，第一版实现了以下关键改进：</p>
+<ul>
+  <li><strong>关注点分离</strong>：MATLAB 版将轨迹生成、IK 求解、碰撞检测、可视化全部耦合在 GUI 回调中。ROS2 版通过 <code>rtfg_core</code> 库将每个阶段封装为独立模块，头文件定义接口，源文件实现逻辑，模块间通过结构体传递数据。</li>
+  <li><strong>服务化接口</strong>：三组 service（<code>LoadConfig</code>、<code>FitPreview</code>、<code>ExecuteCached</code>）对应 MATLAB GUI 的加载配置、拟合预览、执行回放三个核心动作。这个映射保留了旧工作流的操作顺序，同时让任意客户端都能调用。</li>
+  <li><strong>双模型策略</strong>：xacro 用于 ROS2 生态（package:// URI），solver URDF 用于 C++ 求解器（相对路径），避免 urdfdom/FCL 加载时解析 package URI 的开销。</li>
+  <li><strong>数据流管线化</strong>：8 阶段单向数据流明确了每个步骤的输入输出，有利于后续性能分析（逐阶段计时）和并行化（如 IK 求解与碰撞检测管线重叠）。</li>
+</ul>
+
+<h3>4.2 当前状态</h3>
+
+<div class="notice">
+  <strong>当前实测状态：</strong>第一版已经完成脱 MATLAB、ROS2 服务化和 RViz/MoveIt 可视化接入。默认 YAML 参数可以生成完整关节轨迹、TCP path 和碰撞审计结果。但当前轨迹在 tool-basin 检查中存在穿透，因此 <code>/rtfg/fit_preview</code> 会返回 <code>success=false</code> 并附带碰撞对象、最小 clearance 和轨迹数据。第二阶段已新增 <code>config/environment_runtime_config_safe.yaml</code> 用于无碰撞成功路径验证。
+</div>
+
+<div class="notice info">
+  <strong>性能说明：</strong>当前 ROS2 C++ 第一版还没有超过历史 MEX 基线。主要原因不是 C++ 本身慢，而是第一版为了稳定复刻 MATLAB 行为，保留了更保守的多阶段 DLS、多种子搜索、候选级碰撞门控，以及 ROS2 service/topic 的序列化和可视化数据发布。详细分析见 <a href="05_Cpp性能基准与优化记录.html">05_Cpp性能基准与优化记录</a>。
+</div>
+
+<!-- ================================================================== -->
+<h2>5. 结论与改进效果</h2>
+<!-- ================================================================== -->
+
+<p>第一版 <code>assembly_rtfg_cpp</code> 完成了从 MATLAB/MEX 到 ROS2 C++ 的架构迁移，核心成果包括：</p>
+<ul>
+  <li><strong>成功脱 MATLAB</strong>：算法完全在 ROS2 Humble 原生 C++ 节点中运行，无任何 MATLAB 依赖</li>
+  <li><strong>模块化重构</strong>：原 MATLAB MEX 单文件拆分为 7 组头文件/源文件（types、utils、robot_model、ik_solver、collision_checker、trajectory_solver、trajectory_generator），接口清晰、可单元测试</li>
+  <li><strong>服务化接口</strong>：3 个 ROS2 service 覆盖 MATLAB GUI 的核心操作，为后续多客户端接入奠定基础</li>
+  <li><strong>可视化迁移</strong>：MATLAB 绘图全部替换为 RViz + MoveIt 标准消息，可与现有 ROS2 可视化工具链无缝集成</li>
+  <li><strong>独立验证台</strong>：新包不修改现有 <code>assembly_rviz_tcp_control</code>、<code>assembly_description</code>、<code>assembly_moveit_config</code>，可独立开发测试</li>
+</ul>
+
+<p><strong>待改进方向：</strong></p>
+<ul>
+  <li>性能优化：当前第一版尚未超越 MEX 基线，需在保持功能一致的前提下做针对性加速（见 <a href="05_Cpp性能基准与优化记录.html">05_Cpp性能基准与优化记录</a>）</li>
+  <li>碰撞参数调优：默认 YAML 在 tool-basin 检查中存在穿透，需进一步调整轨迹参数或碰撞模型（见 <a href="04_碰撞检测与狭小姿态策略.html">04_碰撞检测与狭小姿态策略</a>）</li>
+  <li>GUI 层：后续可在当前服务层上增加 Qt、rqt、web 或 RViz panel 实现完整 GUI</li>
+  <li>实时控制：当前使用 fake controller，后续可接入真实 UR10 硬件控制器</li>
+</ul>
+
+<div class="nav-links">
+  <a href="../rtfg_ros2_cpp_技术文档/index.html">🏠 返回索引</a>
+  <a href="index.html">← index</a>
+  <a href="02_轨迹生成逻辑.html">02_轨迹生成逻辑 →</a>
+</div>
+
+<footer><p>最后更新: 2026-06-02 | assembly_rtfg_cpp 技术文档 | ROS2 Humble</p></footer>
+
+</div>
+</body>
+</html>
