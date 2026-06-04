@@ -19,6 +19,7 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>trajectory_msgs</depend>
   <depend>urdf</depend>
   <depend>visualization_msgs</depend>

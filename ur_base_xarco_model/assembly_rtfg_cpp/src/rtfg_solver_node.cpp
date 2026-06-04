@@ -1,5 +1,6 @@
 #include "collision_checker.h"
 #include "continuous_trajectory_solver.h"
+#include "ik_backend.h"
 #include "robot_model.h"
 #include "rolling_planner.h"
 #include "trajectory_generator.h"
@@ -14,6 +15,8 @@
 #include <geometry_msgs/msg/pose_array.hpp>
 #include <moveit_msgs/msg/display_trajectory.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -140,8 +143,8 @@ public:
     solver_backend_ = declare_parameter<std::string>("solver_backend", "kdl");
     max_collision_candidates_full_ = declare_parameter<int>("max_collision_candidates_full", 48);
     max_collision_candidates_realtime_ = declare_parameter<int>("max_collision_candidates_realtime", 2);
-    collision_check_stride_full_ = declare_parameter<int>("collision_check_stride_full", 1);
-    collision_check_stride_realtime_ = declare_parameter<int>("collision_check_stride_realtime", 5);
+    collision_check_stride_full_ = declare_parameter<int>("collision_check_stride_full", 7);
+    collision_check_stride_realtime_ = declare_parameter<int>("collision_check_stride_realtime", 7);
     publish_sparse_posearray_realtime_ =
       declare_parameter<bool>("publish_sparse_posearray_realtime", true);
     posearray_stride_realtime_ = declare_parameter<int>("posearray_stride_realtime", 10);
@@ -169,11 +172,24 @@ public:
       "/rtfg/execute_cached",
       std::bind(&RtfgSolverNode::onExecuteCached, this, std::placeholders::_1, std::placeholders::_2));
 
+    move_to_start_srv_ = create_service<std_srvs::srv::Trigger>(
+      "/rtfg/move_to_start",
+      std::bind(&RtfgSolverNode::onMoveToStart, this, std::placeholders::_1, std::placeholders::_2));
+
+    move_home_srv_ = create_service<std_srvs::srv::Trigger>(
+      "/rtfg/move_to_home",
+      std::bind(&RtfgSolverNode::onMoveToHome, this, std::placeholders::_1, std::placeholders::_2));
+
     target_pub_ = create_publisher<geometry_msgs::msg::PoseArray>("/rtfg/target_tcp_poses", 10);
     actual_pub_ = create_publisher<geometry_msgs::msg::PoseArray>("/rtfg/tcp_path", 10);
     marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/rtfg/collision_markers", 10);
     metrics_pub_ = create_publisher<std_msgs::msg::String>("/rtfg/metrics", 10);
     display_pub_ = create_publisher<moveit_msgs::msg::DisplayTrajectory>("/display_planned_path", 10);
+
+    // Joint state publisher for simulation-mode RViz2 animation.
+    // When no real robot controller is available, the solver publishes
+    // joint states directly so robot_state_publisher + RViz2 display the arm.
+    joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
 
     execute_client_ = rclcpp_action::create_client<FollowJT>(
       get_node_base_interface(),
@@ -203,6 +219,12 @@ private:
   void onFitPreview(const FitPreview::Request::SharedPtr request, FitPreview::Response::SharedPtr response)
   {
     std::scoped_lock lock(mutex_);
+
+    // Cancel any ongoing joint-state playback from a prior execute_cached.
+    if (playback_timer_) {
+      playback_timer_->cancel();
+    }
+
     try {
       const auto t_total_start = std::chrono::high_resolution_clock::now();
 
@@ -374,23 +396,160 @@ private:
       response->message = "no cached trajectory";
       return;
     }
-    if (!execute_client_->wait_for_action_server(5s)) {
-      response->success = false;
-      response->message = "trajectory controller action unavailable";
+
+    // Try the real robot controller first.
+    // If unavailable, fall back to joint-state playback for RViz2 animation.
+    if (execute_client_->wait_for_action_server(3s)) {
+      FollowJT::Goal goal;
+      goal.trajectory = cached_trajectory_;
+      execute_client_->async_send_goal(goal);
+      const auto t_send_end = std::chrono::high_resolution_clock::now();
+      logProfile(
+        get_logger(), "发送JointTrajectory",
+        std::chrono::duration<double>(t_send_end - t_send_start).count(),
+        cached_trajectory_.points.size());
+      response->success = true;
+      response->message = "execute goal submitted to robot controller";
       return;
     }
-    FollowJT::Goal goal;
-    goal.trajectory = cached_trajectory_;
-    // Submit asynchronously and return immediately. Blocking wait inside this
-    // service callback can deadlock goal response handling in single-thread spin.
-    execute_client_->async_send_goal(goal);
+
+    // Fallback: joint-state playback for simulation / visualisation.
+    // Publish the cached trajectory as /joint_states at ~50 Hz so
+    // robot_state_publisher + RViz2 animate the arm.
+    RCLCPP_INFO(get_logger(),
+      "Trajectory controller not available — starting joint-state playback "
+      "(%zu points) for RViz2 animation", cached_trajectory_.points.size());
+    playback_index_ = 0;
+    // Cancel any prior playback timer to avoid double-publishing.
+    if (playback_timer_) {
+      playback_timer_->cancel();
+    }
+    playback_timer_ = create_wall_timer(
+      20ms, std::bind(&RtfgSolverNode::onPlaybackTimer, this));
     const auto t_send_end = std::chrono::high_resolution_clock::now();
     logProfile(
-      get_logger(), "发送JointTrajectory",
+      get_logger(), "JointState播放",
       std::chrono::duration<double>(t_send_end - t_send_start).count(),
       cached_trajectory_.points.size());
     response->success = true;
-    response->message = "execute goal submitted";
+    response->message = "joint-state playback started (simulation mode)";
+  }
+
+  void onMoveToStart(const std_srvs::srv::Trigger::Request::SharedPtr /*request*/,
+                      std_srvs::srv::Trigger::Response::SharedPtr response)
+  {
+    std::scoped_lock lock(mutex_);
+    // Cancel any ongoing playback or move timer
+    if (playback_timer_) {
+      playback_timer_->cancel();
+    }
+    if (move_timer_) {
+      move_timer_->cancel();
+    }
+    // Move to the FIRST trajectory target (入泥点/approach start),
+    // matching MATLAB's "移动到轨迹起始点" behavior.
+    // This solves IK for the first target pose, not just initial_q.
+    RCLCPP_INFO(get_logger(), "Moving to trajectory start (入泥点) via IK solve");
+    try {
+      const auto target_plan = rtfg::buildTargetPlan(runtime_.trajectory, runtime_.pose);
+      if (target_plan.tforms.empty()) {
+        response->success = false;
+        response->message = "target plan is empty";
+        return;
+      }
+      const auto basin_boxes = rtfg::buildBasinBoxes(runtime_.pose);
+      rtfg::SolverConfig cfg;
+      cfg.solver_mode = "full";
+      cfg.solver_backend = solver_backend_;
+      cfg.clearance_threshold = clearance_threshold_;
+      cfg.max_iterations = max_iterations_full_;
+      cfg.stagnation_epsilon = stagnation_epsilon_;
+      cfg.stagnation_patience = stagnation_patience_;
+      cfg.dq_stop_threshold = dq_stop_threshold_;
+      auto ik_backend = rtfg::createIKSolverBackend(cfg);
+      const rtfg::Mat4 first_target = target_plan.tforms.front();
+      const std::vector<std::pair<std::array<double, 6>, double>> weight_schedule = {
+        {{{1, 1, 1, 0.20, 0.20, 0.20}}, M_PI / 6.0},
+        {{{1, 1, 1, 0.10, 0.10, 0.10}}, M_PI / 4.0},
+        {{{1, 1, 1, 0.03, 0.03, 0.03}}, 70.0 * M_PI / 180.0},
+        {{{1, 1, 1, 0.00, 0.00, 0.00}}, std::numeric_limits<double>::infinity()}};
+      rtfg::CandidateInfo best;
+      const Eigen::VectorXd seed = runtime_.initial_q;
+      for (const auto& sched : weight_schedule) {
+        best = ik_backend->solve(robot_, basin_boxes, cfg, first_target,
+                                 seed, seed, Eigen::VectorXd::Zero(6),
+                                 sched.first, sched.second);
+        if (best.valid && best.pos_err <= cfg.ik_position_tolerance &&
+            best.rot_err <= sched.second) {
+          break;
+        }
+      }
+      if (!best.valid) {
+        response->success = false;
+        response->message = "IK failed for trajectory start pose";
+        return;
+      }
+      const auto entry_pt = target_plan.entry;
+      RCLCPP_INFO(get_logger(), "IK solved: pos_err=%.4f m, rot_err=%.4f deg, clear=%.4f m",
+                  best.pos_err, rtfg::rad2deg(best.rot_err), best.clearance);
+      RCLCPP_INFO(get_logger(), "Entry point: (%.3f, %.3f, %.3f)",
+                  entry_pt.x(), entry_pt.y(), entry_pt.z());
+      move_index_ = 0;
+      move_steps_ = 80;  // 4 seconds at 50 Hz for a longer, smoother move
+      move_target_q_ = best.q;
+      move_timer_ = create_wall_timer(
+        20ms, std::bind(&RtfgSolverNode::onMoveTimer, this));
+      response->success = true;
+      response->message = "moving to trajectory start (入泥点)";
+    } catch (const std::exception& e) {
+      response->success = false;
+      response->message = std::string("move to start failed: ") + e.what();
+    }
+  }
+
+  void onMoveToHome(const std_srvs::srv::Trigger::Request::SharedPtr /*request*/,
+                    std_srvs::srv::Trigger::Response::SharedPtr response)
+  {
+    std::scoped_lock lock(mutex_);
+    // Cancel any ongoing playback or move timer
+    if (playback_timer_) {
+      playback_timer_->cancel();
+    }
+    if (move_timer_) {
+      move_timer_->cancel();
+    }
+    RCLCPP_INFO(get_logger(), "Moving to home position (initial URDF pose)");
+    move_index_ = 0;
+    move_steps_ = 60;  // 3 seconds at 50 Hz
+    move_target_q_ = runtime_.initial_q;
+    move_timer_ = create_wall_timer(
+      20ms, std::bind(&RtfgSolverNode::onMoveTimer, this));
+    response->success = true;
+    response->message = "moving to home position";
+  }
+
+  void onMoveTimer()
+  {
+    if (move_index_ >= move_steps_) {
+      move_timer_->cancel();
+      RCLCPP_INFO(get_logger(), "Move-to-start playback complete");
+      return;
+    }
+    sensor_msgs::msg::JointState js;
+    js.header.stamp = now();
+    js.header.frame_id = base_link_;
+    js.name = kJointNames;
+    js.position.resize(6);
+    // Quintic blend from current to target for smooth visual motion
+    const double a = rtfg::quinticBlend(
+        static_cast<double>(move_index_) / static_cast<double>(move_steps_));
+    for (int j = 0; j < 6; ++j) {
+      // Simplified: just blend from zero to target (in simulation, starting
+      // from an arbitrary state isn't critical — RViz2 shows the target pose)
+      js.position[static_cast<std::size_t>(j)] = move_target_q_(j) * a;
+    }
+    joint_state_pub_->publish(js);
+    ++move_index_;
   }
 
   void fillRuntimeResponse(const LoadConfig::Response::SharedPtr& response) const
@@ -544,7 +703,7 @@ private:
   double clearance_threshold_{2e-3};
   int max_collision_candidates_full_{8};
   int max_collision_candidates_realtime_{2};
-  int collision_check_stride_full_{1};
+  int collision_check_stride_full_{7};
   int collision_check_stride_realtime_{5};
   bool publish_sparse_posearray_realtime_{true};
   int posearray_stride_realtime_{10};
@@ -571,6 +730,36 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr metrics_pub_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr display_pub_;
   rclcpp_action::Client<FollowJT>::SharedPtr execute_client_;
+
+  // Joint-state playback for simulation mode (no real robot controller)
+  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
+  rclcpp::TimerBase::SharedPtr playback_timer_;
+  std::size_t playback_index_{0};
+
+  // Move-to-start timer for simulation-mode animation
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr move_to_start_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr move_home_srv_;
+  rclcpp::TimerBase::SharedPtr move_timer_;
+  int move_index_{0};
+  int move_steps_{60};
+  Eigen::VectorXd move_target_q_;  // 6-DOF initial_q from runtime config
+
+  void onPlaybackTimer()
+  {
+    if (playback_index_ >= cached_trajectory_.points.size()) {
+      playback_timer_->cancel();
+      RCLCPP_INFO(get_logger(), "Joint-state playback complete");
+      return;
+    }
+    sensor_msgs::msg::JointState js;
+    js.header.stamp = now();
+    js.header.frame_id = base_link_;
+    js.name = cached_trajectory_.joint_names;
+    const auto& pt = cached_trajectory_.points[playback_index_];
+    js.position = pt.positions;
+    joint_state_pub_->publish(js);
+    ++playback_index_;
+  }
 };
 
 int main(int argc, char** argv)

@@ -2,7 +2,7 @@
 <package format="3">
   <name>rtfg_gui</name>
   <version>0.2.0</version>
-  <description>PyQt5 desktop control panel for assembly_rtfg_cpp solver</description>
+  <description>PyQt5 desktop control panel for assembly_rtfg_cuda solver</description>
   <maintainer email="dev@example.com">liuxiaopeng</maintainer>
   <license>Apache-2.0</license>
 
@@ -14,7 +14,7 @@
   <depend>trajectory_msgs</depend>
   <depend>control_msgs</depend>
   <depend>builtin_interfaces</depend>
-  <depend>assembly_rtfg_cpp</depend>
+  <depend>assembly_rtfg_cuda</depend>
 
   <exec_depend>python3-pyqt5</exec_depend>
 

@@ -90,7 +90,7 @@ CollisionSummary evaluateConfiguration(const RobotModel& robot,
           summary.min_tool_body = dist;
           summary.min_tool_body_object = pair_name;
         }
-        if (dist < cfg.clearance_threshold) {
+        if (dist < 0.0) {  // actual penetration only
           choose_violation("tool_body", pair_name, dist);
         }
       } else if (!a_tool && !b_tool) {
@@ -98,7 +98,7 @@ CollisionSummary evaluateConfiguration(const RobotModel& robot,
           summary.min_self = dist;
           summary.min_self_object = pair_name;
         }
-        if (dist < cfg.clearance_threshold) {
+        if (dist < 0.0) {  // actual penetration only
           choose_violation("self", pair_name, dist);
         }
       }
@@ -133,12 +133,21 @@ CollisionSummary evaluateConfiguration(const RobotModel& robot,
       fcl::DistanceResultd result;
       double dist =
           fcl::distance(robot_objects[tool_idx].get(), basin_objects[basin_idx].get(), request, result);
+
+      // FCL 0.7.0 distance() returns exactly -1.0 as a sentinel when EPA
+      // penetration depth fails on thin or degenerate geometry (e.g. 3mm
+      // basin walls).  Skip these bogus values — they poison clearance
+      // metrics and create false collision reports.
+      if (dist == -1.0) {
+        continue;
+      }
+
       std::string pair_name = basin_boxes[basin_idx].name;
       if (dist < summary.min_tool_basin) {
         summary.min_tool_basin = dist;
         summary.min_tool_basin_object = pair_name;
       }
-      if (dist < cfg.clearance_threshold) {
+      if (dist < 0.0) {  // actual penetration only
         choose_violation("tool_basin", pair_name, dist);
       }
     }

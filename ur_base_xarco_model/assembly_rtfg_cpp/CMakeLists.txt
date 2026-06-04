@@ -18,6 +18,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(urdf REQUIRED)
 find_package(visualization_msgs REQUIRED)
@@ -78,6 +79,7 @@ ament_target_dependencies(rtfg_solver_node
   rclcpp
   rclcpp_action
   std_msgs
+  std_srvs
   trajectory_msgs
   visualization_msgs
 )

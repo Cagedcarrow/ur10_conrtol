@@ -5,7 +5,7 @@ package_name = "rtfg_gui"
 setup(
     name=package_name,
     version="0.2.0",
-    description="PyQt5-based desktop control panel for assembly_rtfg_cpp",
+    description="PyQt5-based desktop control panel for assembly_rtfg_cuda",
     maintainer="liuxiaopeng",
     maintainer_email="dev@example.com",
     license="Apache-2.0",

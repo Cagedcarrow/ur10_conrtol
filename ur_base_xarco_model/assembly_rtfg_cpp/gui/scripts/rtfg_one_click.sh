@@ -74,16 +74,16 @@ sleep 1
 # Start solver node in background
 # ---------------------------------------------------------------------------
 echo "[3/4] Starting rtfg_solver_node in background..."
-PKG_SHARE=$(ros2 pkg prefix assembly_rtfg_cpp 2>/dev/null || echo "")
+PKG_SHARE=$(ros2 pkg prefix assembly_rtfg_cuda 2>/dev/null || echo "")
 if [ -n "$PKG_SHARE" ]; then
-  CONFIG_PATH="$PKG_SHARE/share/assembly_rtfg_cpp/config/environment_runtime_config.yaml"
-  URDF_PATH="$PKG_SHARE/share/assembly_rtfg_cpp/urdf/assembly_rtfg_solver.urdf"
+  CONFIG_PATH="$PKG_SHARE/share/assembly_rtfg_cuda/config/environment_runtime_config.yaml"
+  URDF_PATH="$PKG_SHARE/share/assembly_rtfg_cuda/urdf/assembly_rtfg_solver.urdf"
 else
-  CONFIG_PATH="$PROJECT_DIR/src/assembly_rtfg_cpp/config/environment_runtime_config.yaml"
-  URDF_PATH="$PROJECT_DIR/src/assembly_rtfg_cpp/urdf/assembly_rtfg_solver.urdf"
+  CONFIG_PATH="$PROJECT_DIR/src/assembly_rtfg_cuda/config/environment_runtime_config.yaml"
+  URDF_PATH="$PROJECT_DIR/src/assembly_rtfg_cuda/urdf/assembly_rtfg_solver.urdf"
 fi
 
-ros2 run assembly_rtfg_cpp rtfg_solver_node \
+ros2 run assembly_rtfg_cuda rtfg_solver_node \
   --ros-args \
   -p config_path:="$CONFIG_PATH" \
   -p solver_urdf_path:="$URDF_PATH" \

@@ -80,7 +80,24 @@ double continuityCost(const Eigen::VectorXd& q_candidate, const Eigen::VectorXd&
                       const Eigen::VectorXd& dq_prev) {
   Eigen::VectorXd dq_pos = wrapJointDelta(q_candidate - q_prev);
   Eigen::VectorXd dq_vel = dq_pos - dq_prev;
-  return dq_pos.norm() + 0.65 * dq_vel.norm();
+  double cost = dq_pos.norm() + 0.65 * dq_vel.norm();
+
+  // Branch-switch penalty: any joint whose UNWRAPPED delta exceeds 25°
+  // adds a direct penalty equal to the excess (in radians).
+  // This penalizes IK solutions that jump to a different kinematic branch,
+  // which would produce 200°+ joint steps in the final trajectory.
+  // The threshold (25°) is well above normal motion between consecutive
+  // targets (~0.5-5° per step) while catching multi-joint branch switches.
+  static const double BRANCH_THRESHOLD = 25.0 * M_PI / 180.0;  // ~0.436 rad
+  const Eigen::VectorXd dq_raw = q_candidate - q_prev;
+  for (int i = 0; i < dq_raw.size(); ++i) {
+    const double abs_dq = std::abs(dq_raw(i));
+    if (abs_dq > BRANCH_THRESHOLD) {
+      cost += (abs_dq - BRANCH_THRESHOLD);
+    }
+  }
+
+  return cost;
 }
 
 Vec6 poseError(const Mat4& current, const Mat4& target) {

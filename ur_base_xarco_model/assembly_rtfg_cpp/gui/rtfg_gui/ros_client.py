@@ -1,4 +1,4 @@
-"""ROS2 service call wrapper for assembly_rtfg_cpp solver services.
+"""ROS2 service call wrapper for assembly_rtfg_cuda solver services.
 
 Provides synchronous wrappers for the three main solver services
 (load_config, fit_preview, execute_cached) plus a move_to_start method.
@@ -14,7 +14,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 
-from assembly_rtfg_cpp.srv import LoadConfig, FitPreview, ExecuteCached
+from assembly_rtfg_cuda.srv import LoadConfig, FitPreview, ExecuteCached
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from geometry_msgs.msg import PoseArray, Pose
 from builtin_interfaces.msg import Duration
@@ -251,8 +251,9 @@ class RosClient:
     def execute_cached(self):
         """Call /rtfg/execute_cached to execute the last cached trajectory.
 
-        In simulation mode, returns a mock success without contacting the
-        robot controller.
+        In simulation mode, the solver node's onExecuteCached will detect
+        that no real robot controller is available and fall back to publishing
+        /joint_states, which animates the arm in RViz2 via robot_state_publisher.
 
         Returns
         -------
@@ -260,12 +261,8 @@ class RosClient:
         """
         if self.simulation_mode:
             self._logger.info(
-                "[SIM] execute_cached — 仿真模式: 跳过实际运动指令, "
-                "轨迹已由 solver 缓存")
-            return {
-                "success": True,
-                "message": "[仿真] 运动指令已跳过 (仿真模式, 轨迹已缓存)",
-            }
+                "[SIM] execute_cached — 仿真模式: solver节点将使用 "
+                "joint_state回放模式在RViz2中显示运动")
 
         req = ExecuteCached.Request()
         req.execute = True
@@ -273,86 +270,63 @@ class RosClient:
         return {"success": resp.success, "message": resp.message}
 
     def move_to_start(self):
-        """Move robot to the initial joint configuration (initial_q).
+        """Move robot to the first trajectory target (入泥点/approach start).
 
-        Reads initial_q from /rtfg/load_config, then sends a
-        FollowJointTrajectory goal to the robot controller.
-
-        In simulation mode, returns a mock success with the initial_q values.
+        Calls /rtfg/move_to_start service. The solver node solves IK for the
+        first target pose (matching MATLAB's "移动到轨迹起始点" behavior) and
+        publishes /joint_states for smooth animation in RViz2.
 
         Returns
         -------
-        dict with keys: success, message, initial_q (sim only).
+        dict with keys: success, message.
         """
-        # Step 1: get initial_q from the solver config
-        config = self.load_config()
-        if not config.get("success"):
-            return {
-                "success": False,
-                "message": "Failed to load config: " + config.get("message", "unknown"),
-            }
+        self._logger.info("move_to_start: moving to trajectory start (入泥点)")
+        try:
+            from std_srvs.srv import Trigger
+            cli = self._node.create_client(Trigger, "/rtfg/move_to_start")
+            if not cli.wait_for_service(timeout_sec=5.0):
+                return {"success": False,
+                        "message": "move_to_start service not available"}
+            req = Trigger.Request()
+            future = cli.call_async(req)
+            rclpy.spin_until_future_complete(self._node, future, timeout_sec=30.0)
+            resp = future.result()
+            if resp is not None and resp.success:
+                return {"success": True, "message": resp.message}
+            return {"success": False,
+                    "message": resp.message if resp else "no response"}
+        except Exception as e:
+            self._logger.warn(f"move_to_start failed: {e}")
+            return {"success": False, "message": str(e)}
 
-        initial_q = config.get("initial_q", [])
-        if len(initial_q) != 6:
-            return {
-                "success": False,
-                "message": f"Invalid initial_q: expected 6 joints, got {len(initial_q)}",
-            }
+    def move_to_home(self):
+        """Move robot back to the URDF initial pose (初始姿态).
 
-        if self.simulation_mode:
-            q_str = ", ".join(f"{v:.3f}" for v in initial_q)
-            self._logger.info(
-                f"[SIM] move_to_start — 仿真模式: 跳过实际运动, "
-                f"目标关节角: [{q_str}]")
-            return {
-                "success": True,
-                "message": f"[仿真] 已记录起始点 (initial_q: [{q_str}])",
-                "initial_q": initial_q,
-            }
+        Calls /rtfg/move_to_home service. The solver node moves to
+        initial_q (loaded from URDF) via joint-state playback.
 
-        # Step 2: get (or create) the action client
-        action_cli = self._get_traj_action_client()
-
-        # Step 3: wait for the action server
-        if not action_cli.wait_for_server(timeout_sec=5.0):
-            return {
-                "success": False,
-                "message": "Trajectory controller action server not available "
-                           "(/joint_trajectory_controller/follow_joint_trajectory)",
-            }
-
-        # Step 4: build and send the goal
-        goal_msg = FollowJointTrajectory.Goal()
-        goal_msg.trajectory.joint_names = _JOINT_NAMES
-
-        point = JointTrajectoryPoint()
-        point.positions = initial_q
-        point.velocities = [0.0] * 6
-        point.time_from_start = Duration(sec=3, nanosec=0)
-
-        goal_msg.trajectory.points = [point]
-
-        send_goal_future = action_cli.send_goal_async(goal_msg)
-        rclpy.spin_until_future_complete(self._node, send_goal_future, timeout_sec=5.0)
-        goal_handle = send_goal_future.result()
-        if goal_handle is None:
-            return {
-                "success": False,
-                "message": "Timed out sending goal to action server",
-            }
-        if not goal_handle.accepted:
-            return {
-                "success": False,
-                "message": "Goal was rejected by the action server",
-            }
-
-        q_str = ", ".join(f"{v:.3f}" for v in initial_q)
-        self._logger.info(
-            f"move_to_start goal accepted (initial_q: [{q_str}])")
-        return {
-            "success": True,
-            "message": "Move to start goal accepted",
-        }
+        Returns
+        -------
+        dict with keys: success, message.
+        """
+        self._logger.info("move_to_home: returning to initial URDF pose")
+        try:
+            from std_srvs.srv import Trigger
+            cli = self._node.create_client(Trigger, "/rtfg/move_to_home")
+            if not cli.wait_for_service(timeout_sec=5.0):
+                return {"success": False,
+                        "message": "move_to_home service not available"}
+            req = Trigger.Request()
+            future = cli.call_async(req)
+            rclpy.spin_until_future_complete(self._node, future, timeout_sec=10.0)
+            resp = future.result()
+            if resp is not None and resp.success:
+                return {"success": True, "message": resp.message}
+            return {"success": False,
+                    "message": resp.message if resp else "no response"}
+        except Exception as e:
+            self._logger.warn(f"move_to_home failed: {e}")
+            return {"success": False, "message": str(e)}
 
     def get_topics(self):
         """Return a list of /rtfg/ topic names known to the node."""
