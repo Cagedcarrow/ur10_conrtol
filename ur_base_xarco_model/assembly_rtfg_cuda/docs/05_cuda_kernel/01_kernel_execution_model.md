@@ -91,7 +91,7 @@ SM 23:| Block 23| Block 28| ...      |
 
 ```cpp
 // cuda_kernels.cu:51-65 — 共享内存声明
-__shared__ double s_q[48];      // 所有 128 线程共享
+__shared__ double s_q[8];       // 所有 128 线程共享
 __shared__ double s_T[16];      // FK 结果
 __shared__ double s_J[48];      // 雅可比矩阵
 __shared__ double s_H[48];      // 海森矩阵
@@ -157,8 +157,8 @@ dim3 block(block_size);
 | Grid | (N, 1, 1) | ((N+255)/256, 1, 1) |
 | Block | (128, 1, 1) | (256, 1, 1) |
 | 线程/目标 | 128 | 1 |
-| 共享内存/block | 1,676 B | 0 B |
-| 寄存器/线程 | 98 | ~20 |
+| 共享内存/block | 1,616 B | 0 B |
+| 寄存器/线程 | 96 | ~50 |
 
 ## 关键设计理念
 

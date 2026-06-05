@@ -8,5 +8,5 @@
 | [02_device_buffer.md](02_device_buffer.md) | DeviceBuffer RAII 封装详解（cudaMalloc/cudaFree/toDevice/toHost） | `cuda_memory.h:14-106` |
 | [03_constant_memory.md](03_constant_memory.md) | `__constant__` 常量内存广播（1,384 bytes 运动学参数） | `cuda_utilities.cuh:74-86`, `cuda_ik_solver.cu:261-282` |
 | [04_shared_memory.md](04_shared_memory.md) | 共享内存 Bank 冲突避免（8列 padding 策略） | `cuda_kernels.cu:51-65`, ncu Bank 冲突 = 0 |
-| [05_register_usage.md](05_register_usage.md) | 寄存器使用分析（98 regs/thread, 零溢出） | ncu 实测, PTX 汇编器报告 |
+| [05_register_usage.md](05_register_usage.md) | 寄存器使用分析（96 regs/thread, 零溢出） | ncu 实测, PTX 汇编器报告 |
 | [06_memory_lifecycle.md](06_memory_lifecycle.md) | 完整内存生命周期（分配→使用→释放） | `cuda_ik_solver.cu`, `cuda_memory.h` |

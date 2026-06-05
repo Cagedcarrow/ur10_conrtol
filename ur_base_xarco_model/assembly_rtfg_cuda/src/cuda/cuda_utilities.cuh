@@ -9,7 +9,6 @@
 //     mixed axes: Z / Y / Y / Y / -Z / Y)
 
 #include <cuda_runtime.h>
-#include <cooperative_groups.h>
 #include <cmath>
 
 // ---- Error checking macro ----
@@ -62,6 +61,34 @@ __device__ __forceinline__ double cuda_norm6(const double* v) {
   return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] +
               v[3] * v[3] + v[4] * v[4] + v[5] * v[5]);
 }
+
+// ============================================================================
+// PaddedMat6x8 — Lightweight 6×8 padded shared memory wrapper
+//
+// Provides type-safe operator()(row, col) access to 6×6 matrices stored in
+// 48-element double arrays with 8-column padding for bank-conflict avoidance.
+// All methods are __device__ __forceinline__ for zero overhead.
+//
+// This achieves the intent of cuda::std::mdspan (type-safe 2D access) without
+// the C++20 and heavy template dependency. For 6×6 matrices, this lightweight
+// wrapper is a better engineering choice than the full mdspan implementation.
+// ============================================================================
+struct PaddedMat6x8 {
+  double* data;  // Points to __shared__ double[48]
+
+  __device__ __forceinline__ PaddedMat6x8(double* d) : data(d) {}
+
+  // Access element at (row, col) with 8-column padding: idx = row * 8 + col
+  __device__ __forceinline__ double& operator()(int row, int col) {
+    return data[row * 8 + col];
+  }
+  __device__ __forceinline__ const double& operator()(int row, int col) const {
+    return data[row * 8 + col];
+  }
+
+  // Access underlying raw pointer (for backward compatibility)
+  __device__ __forceinline__ double* raw() { return data; }
+};
 
 }  // namespace cuda
 }  // namespace rtfg
@@ -233,6 +260,67 @@ __device__ __forceinline__ void pose_error(const double* T_cur, const double* T_
     err[4] = T_cur[4] * wx + T_cur[5] * wy + T_cur[6] * wz;
     err[5] = T_cur[8] * wx + T_cur[9] * wy + T_cur[10] * wz;
   }
+}
+
+// ============================================================================
+// Shovel kinematics — complete tool chain analysis
+//
+// Tool chain: UR10 wrist3 → ur10-sensor_shovel → sensor_shovel_tcp_fixed
+//   T_wrist3_to_sensor_shovel: rpy=(-1.5707963, 0, 0), xyz=(0, 0.09, 0)
+//   T_sensor_shovel_to_tcp: rpy=(-1.5708, 1.5708, -0.61087), xyz=(-0.47377, 0.077109, 0.0733)
+//   T_wrist3_to_tcp = T_wrist3_to_sensor_shovel * T_sensor_shovel_to_tcp
+//
+// The shovel TCP (sensor_shovel_tcp_fixed) is the actual trajectory fitting target.
+// These functions enable analysis of shovel-tip accuracy vs wrist accuracy.
+// ============================================================================
+
+// Compute TCP (shovel tip) transform from wrist3 transform using tool offset.
+// T_tcp = T_wrist3 * T_wrist3_to_tcp  (row-major 4×4 homogeneous matrices)
+__device__ __forceinline__ void shovel_tcp_transform(
+    const double* T_wrist3, const double* T_wrist3_to_tcp, double* T_tcp) {
+  mat44_mul(T_wrist3, T_wrist3_to_tcp, T_tcp);
+}
+
+// Shovel TCP pose error: position and orientation errors at the shovel tip.
+// Computes:
+//   pos_err = Euclidean distance between current and target TCP positions
+//   rot_err = geodesic angular distance on SO(3) between orientations
+// The errors are in world frame, directly measuring shovel-tip tracking accuracy.
+__device__ __forceinline__ void shovel_pose_error(
+    const double* T_tcp_cur, const double* T_tcp_tgt,
+    double* pos_err, double* rot_err) {
+  // Position error (world-frame Euclidean distance at shovel tip)
+  double dx = T_tcp_tgt[3]  - T_tcp_cur[3];
+  double dy = T_tcp_tgt[7]  - T_tcp_cur[7];
+  double dz = T_tcp_tgt[11] - T_tcp_cur[11];
+  *pos_err = sqrt(dx * dx + dy * dy + dz * dz);
+
+  // Orientation error via geodesic distance on SO(3)
+  // R_err = R_cur^T * R_tgt, trace gives cos(θ) = (trace(R_err) - 1) / 2
+  double r00 = T_tcp_cur[0], r01 = T_tcp_cur[1], r02 = T_tcp_cur[2];
+  double r10 = T_tcp_cur[4], r11 = T_tcp_cur[5], r12 = T_tcp_cur[6];
+  double r20 = T_tcp_cur[8], r21 = T_tcp_cur[9], r22 = T_tcp_cur[10];
+
+  double t00 = T_tcp_tgt[0], t01 = T_tcp_tgt[1], t02 = T_tcp_tgt[2];
+  double t10 = T_tcp_tgt[4], t11 = T_tcp_tgt[5], t12 = T_tcp_tgt[6];
+  double t20 = T_tcp_tgt[8], t21 = T_tcp_tgt[9], t22 = T_tcp_tgt[10];
+
+  // Only need diagonal of R_err = R_cur^T * R_tgt for trace
+  double e00 = r00 * t00 + r10 * t10 + r20 * t20;
+  double e11 = r01 * t01 + r11 * t11 + r21 * t21;
+  double e22 = r02 * t02 + r12 * t12 + r22 * t22;
+
+  double trace = e00 + e11 + e22;
+  *rot_err = acos(cuda_clamp((trace - 1.0) * 0.5, -1.0, 1.0));
+}
+
+// Extract shovel TCP position vector from 4×4 homogeneous transform.
+// Returns (x, y, z) of the translation component.
+__device__ __forceinline__ void shovel_tcp_position(
+    const double* T_tcp, double* px, double* py, double* pz) {
+  *px = T_tcp[3];
+  *py = T_tcp[7];
+  *pz = T_tcp[11];
 }
 
 // ============================================================================

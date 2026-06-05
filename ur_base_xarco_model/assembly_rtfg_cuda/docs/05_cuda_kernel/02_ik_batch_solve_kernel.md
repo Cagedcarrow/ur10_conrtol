@@ -61,7 +61,7 @@ if (tid >= N) return;  // 边界保护
 
 ```
 变量分布:
-  关节状态:  s_q[48], s_q_ref[6], s_q_best[6]
+  关节状态:  s_q[8], s_q_ref[6], s_q_best[6]
   矩阵:      s_T[16], s_T_tgt[16], s_J[48], s_H[48]
   向量:      s_err[6], s_g[6], s_dq[6]
   标量:      s_converged, s_iter_count, s_lambda, s_best_pos_err, s_stagnation
@@ -164,12 +164,12 @@ graph TD
 | 批处理数 | 273 目标 |
 | 线程/Block | 128 |
 | 总线程数 | 273 × 128 = 34,944 |
-| 共享内存/Block | 1,676 bytes |
-| 寄存器/线程 | 98 |
-| Kernel 执行时间 | 7.35 ms |
-| 单目标平均 | 27 μs |
-| 单迭代平均 | 3.4 μs |
-| 平均迭代次数 | 7.9 |
+| 共享内存/Block | 1,616 bytes |
+| 寄存器/线程 | 96 |
+| Kernel 执行时间 | 6.434 ms |
+| 单目标平均 | 24 μs |
+| 单迭代平均 | 3.5 μs |
+| 平均迭代次数 | 6.7 |
 
 ## 相关代码行号
 

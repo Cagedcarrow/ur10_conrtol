@@ -14,6 +14,7 @@ assembly_rtfg_cuda/
 │
 ├── include/assembly_rtfg_cuda/
 │   ├── cuda_ik_solver.h              # CudaBatchIK 类声明
+│   ├── cuda_collision.h              # GPU 碰撞检测接口声明
 │   ├── cuda_kernels.h                # Kernel wrapper 声明
 │   └── cuda_memory.h                 # DeviceBuffer RAII 模板
 │

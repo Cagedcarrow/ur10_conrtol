@@ -121,16 +121,18 @@ row stride in bytes  = 64 = 2^6
 
 ```cpp
 // cuda_kernels.cu:51-65
-__shared__ double s_q[48];           // 6×8 = 48 doubles (6个关节角 + 2 padding)
+__shared__ double s_q[8];            // 6+2=8 doubles (6个关节角 + 2 padding)
 __shared__ double s_T[16];           // 4×4 = 16 doubles (当前 FK 结果)
 __shared__ double s_T_tgt[16];       // 4×4 = 16 doubles (目标位姿)
+__shared__ double s_T_tcp[16];       // 4×4 = 16 doubles (铲斗 TCP 变换)
+__shared__ double s_T_tcp_tgt[16];   // 4×4 = 16 doubles (铲斗 TCP 目标)
 __shared__ double s_J[48];           // 6×8 = 48 doubles (雅可比矩阵)
 __shared__ double s_H[48];           // 6×8 = 48 doubles (海森矩阵)
-__shared__ double s_err[6];          // 6 = 6 doubles (位姿误差)
-__shared__ double s_g[6];            // 6 = 6 doubles (梯度向量)
-__shared__ double s_dq[6];           // 6 = 6 doubles (步长)
-__shared__ double s_q_ref[6];        // 6 = 6 doubles (参考关节角)
-__shared__ double s_q_best[6];       // 6 = 6 doubles (最佳关节角)
+__shared__ double s_err[6];          // 6 doubles (位姿误差)
+__shared__ double s_g[6];            // 6 doubles (梯度向量)
+__shared__ double s_dq[6];           // 6 doubles (步长)
+__shared__ double s_q_ref[6];        // 6 doubles (参考关节角)
+__shared__ double s_q_best[6];       // 6 doubles (最佳关节角)
 // 标量变量
 __shared__ int    s_converged;
 __shared__ int    s_iter_count;
@@ -139,7 +141,7 @@ __shared__ double s_best_pos_err;
 __shared__ int    s_stagnation;
 ```
 
-**总共享内存**: ~1,676 bytes (ncu 实测值)
+**总共享内存**: ~1,616 bytes (ncu 实测值)
 
 ### 内存布局示意图
 
@@ -207,7 +209,7 @@ if (threadIdx.x == 0) {
 
 | 数组 | 有效维度 | 分配维度 | Padding 策略 |
 |------|---------|---------|-------------|
-| `s_q` | 6 | 8 (48) | +33% |
+| `s_q` | 1×6 | 1×8 (8) | +33% (2 doubles) |
 | `s_J` | 6×6 | 6×8 (48) | +33% |
 | `s_H` | 6×6 | 6×8 (48) | +33% |
 
@@ -242,7 +244,7 @@ for (int r = 0; r < 6; ++r) {
 | **解决方案** | 6×8 分配（每行 padding 到 8 列 = 64 bytes = 2^4 Banks） |
 | **效果** | ncu 实测 Bank 冲突 = 0 |
 | **代价** | 每矩阵 48 - 36 = 12 doubles (96 bytes) 的额外共享内存 |
-| **总代价** | 3 个矩阵 × 96 bytes = 288 bytes，占总共享内存 1,676 bytes 的 17% |
+| **总代价** | 3 个矩阵的 padding 开销 = 208 bytes（s_q: 2×8=16B, s_J: 12×8=96B, s_H: 12×8=96B），占总共享内存 1,616 bytes 的 13% |
 | **是否值得** | 是的，因为 Bank 冲突会使访问延迟增加 2-32 倍 |
 
 ## 相关代码行号

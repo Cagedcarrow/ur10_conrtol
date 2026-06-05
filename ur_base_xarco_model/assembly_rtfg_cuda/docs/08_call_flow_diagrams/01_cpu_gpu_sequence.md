@@ -48,10 +48,10 @@ sequenceDiagram
     Note over GPUGlobal: Grid(273,1) Block(128,1)
     
     GPUGlobal->>GPUShared: coalesced load d_targets → s_T_tgt[16]
-    GPUGlobal->>GPUShared: coalesced load d_seeds → s_q[48]
+    GPUGlobal->>GPUShared: coalesced load d_seeds → s_q[8]
     GPUShared->>GPUShared: s_q_ref[6] ← s_q[6] (备份种子)
 
-    Note over GPUShared: ===== 迭代循环 (7.9 avg) =====
+    Note over GPUShared: ===== 迭代循环 (6.7 avg) =====
     
     loop for iter < max_iter AND !s_converged
         GPUShared->>GPUReg: s_q → registers (FK)
@@ -139,7 +139,7 @@ sequenceDiagram
 |------|-----------|------|
 | H2D 传输 | 30 | cudaMemcpyAsync (47 KB) |
 | Kernel Launch | 20 | CUDA runtime 开销 |
-| ik_batch_solve | 7,350 | 273 Block × 7.9 iter |
+| ik_batch_solve | 6,434 | 273 Block × 6.7 iter |
 | continuity_cost | 130 | 273 目标的连续性代价 |
 | D2H 回读 | 20 | cudaMemcpyAsync (19 KB) |
 | DeviceSync | 300 | 阻塞等待 |

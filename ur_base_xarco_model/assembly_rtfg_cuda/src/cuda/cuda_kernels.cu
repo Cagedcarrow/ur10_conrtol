@@ -37,18 +37,20 @@ __global__ void ik_batch_solve(
     const double* __restrict__ d_targets,     // [N, 16] target transforms (row-major)
     const double* __restrict__ d_seeds,        // [N, 6]  initial seeds
     double* __restrict__ d_results,            // [N, 6]  output joint angles
-    double* __restrict__ d_errors,             // [N, 2]  output (pos_err, rot_err)
+    double* __restrict__ d_errors,             // [N, 2]  output (pos_err, rot_err) at wrist
+    double* __restrict__ d_shovel_errors,      // [N, 2]  output (pos_err, rot_err) at shovel TCP
     double* __restrict__ d_iterations,         // [N]     iterations used
     const int    max_iter,                     // max iterations per point
     const double pos_tol,                      // position tolerance (m)
     const double orient_tol,                   // orientation tolerance (rad)
+    const int    weight_level,                 // weight schedule level (0-3)
     const int    N                             // total target count
 ) {
   int tid = blockIdx.x;  // Task ID = block index
   if (tid >= N) return;
 
   // === Shared memory (per-block, bank-conflict-free via 8-column padding) ===
-  __shared__ double s_q[48];           // 6 doubles padded to 8
+  __shared__ double s_q[8];            // 6 doubles padded to 8 for alignment
   __shared__ double s_T[16];           // Current FK result (4×4)
   __shared__ double s_T_tgt[16];       // Target transform
   __shared__ double s_J[48];           // Jacobian 6×6 padded to 6×8 per row
@@ -63,6 +65,12 @@ __global__ void ik_batch_solve(
   __shared__ double s_lambda;          // Current damping factor
   __shared__ double s_best_pos_err;    // Best position error seen
   __shared__ int    s_stagnation;      // Stagnation counter (consecutive non-improvements)
+  __shared__ double s_T_tcp[16];       // Shovel TCP transform (FK result with tool offset)
+  __shared__ double s_T_tcp_tgt[16];   // Target shovel TCP transform
+
+  // --- Type-safe 2D matrix views (zero-overhead, replaces manual s_J[k*8+row]) ---
+  PaddedMat6x8 J(s_J);  // Jacobian view: J(row, col)
+  PaddedMat6x8 H(s_H);  // Hessian view:  H(row, col)
 
   // === Phase 1: Load seed and target (coalesced global loads) ===
   if (threadIdx.x < 6) {
@@ -119,10 +127,11 @@ __global__ void ik_batch_solve(
     __syncthreads();
     if (s_converged) break;
 
-    // Divergence/oscillation detection: if stagnated for >15 iters, break
+    // Divergence/oscillation detection: if stagnated for >25 iters, break
     if (threadIdx.x == 0 && s_stagnation > 25) {
-      // Restore best q and exit
+      // Restore best q, recompute FK for consistent final pose_error
       for (int i = 0; i < 6; ++i) s_q[i] = s_q_best[i];
+      forward_kinematics(s_q, s_T);  // Recompute FK with restored q
       s_converged = 1;
     }
     __syncthreads();
@@ -147,9 +156,9 @@ __global__ void ik_batch_solve(
       double inv_2eps = 0.5 / eps;
 
       // Position columns
-      s_J[0 * 8 + j] = (T_p[3]  - T_m[3])  * inv_2eps;
-      s_J[1 * 8 + j] = (T_p[7]  - T_m[7])  * inv_2eps;
-      s_J[2 * 8 + j] = (T_p[11] - T_m[11]) * inv_2eps;
+      J(0, j) = (T_p[3]  - T_m[3])  * inv_2eps;
+      J(1, j) = (T_p[7]  - T_m[7])  * inv_2eps;
+      J(2, j) = (T_p[11] - T_m[11]) * inv_2eps;
 
       // Rotation columns (angular velocity from R_diff)
       double r00 = s_T[0], r01 = s_T[1], r02 = s_T[2];
@@ -167,22 +176,28 @@ __global__ void ik_batch_solve(
       dR[7] = (r02*T_p[1]+r12*T_p[5]+r22*T_p[9]) - (r02*T_m[1]+r12*T_m[5]+r22*T_m[9]);
       dR[8] = (r02*T_p[2]+r12*T_p[6]+r22*T_p[10]) - (r02*T_m[2]+r12*T_m[6]+r22*T_m[10]);
 
-      s_J[3 * 8 + j] = (dR[7] - dR[5]) * 0.5 * inv_2eps;  // wx
-      s_J[4 * 8 + j] = (dR[2] - dR[6]) * 0.5 * inv_2eps;  // wy
-      s_J[5 * 8 + j] = (dR[3] - dR[1]) * 0.5 * inv_2eps;  // wz
+      J(3, j) = (dR[7] - dR[5]) * 0.5 * inv_2eps;  // wx
+      J(4, j) = (dR[2] - dR[6]) * 0.5 * inv_2eps;  // wy
+      J(5, j) = (dR[3] - dR[1]) * 0.5 * inv_2eps;  // wz
     }
     __syncthreads();
 
-    // ---- 2e: Adaptive damping (conservative: higher floor prevents overshoot) ----
+    // ---- 2e: Adaptive damping (reads c_lambda_params from constant memory) ----
     if (threadIdx.x == 0) {
       double pos_err = s_pos_err;
+      // Read damping parameters from GPU constant memory (uploaded at init)
+      double lambda_base  = c_lambda_params[0];  // Base damping (e.g., 5e-4 or 2e-3)
+      double lambda_far   = c_lambda_params[1];  // Far-distance max (e.g., 0.1)
+      double lambda_floor = c_lambda_params[2];  // Near-distance floor (e.g., 5e-4)
+      double lambda_scale = c_lambda_params[3];  // Scaling reference distance (e.g., 0.05)
+
       if (pos_err > 0.1) {
         // Far from target: moderate damping, scale with distance
-        s_lambda = fmax(2e-3, 8e-3 * (pos_err / 0.05));
-        s_lambda = fmin(s_lambda, 0.15);
+        s_lambda = fmax(lambda_base, lambda_far * (pos_err / lambda_scale));
+        s_lambda = fmin(s_lambda, lambda_far * 3.0);
       } else {
         // Near target: higher floor prevents oscillations
-        s_lambda = 2e-3 + 8e-3 * (pos_err / 0.05);
+        s_lambda = lambda_floor + lambda_base * (pos_err / lambda_scale);
       }
       // Boost damping if stagnating (divergence recovery)
       if (s_stagnation > 5) {
@@ -193,31 +208,31 @@ __global__ void ik_batch_solve(
     __syncthreads();
 
     // ---- 2f: Hessian H = J^T·W^2·J + λ·I ----
-    // H[r][c] = Σ_k w_k² · J[k][r] · J[k][c]  (consistent with g = J^T·W^2·e)
+    // H[r][c] = Σ_k w_k² · J(k,r) · J(k,c)  (consistent with g = J^T·W^2·e)
     if (threadIdx.x < 36) {
       int row = threadIdx.x / 6;
       int col = threadIdx.x % 6;
 
       double sum = 0.0;
       for (int k = 0; k < 6; ++k) {
-        double w_k = c_weight_schedule[0 * 6 + k];
+        double w_k = c_weight_schedule[weight_level * 6 + k];
         double w2 = w_k * w_k;
-        sum += s_J[k * 8 + row] * w2 * s_J[k * 8 + col];
+        sum += J(k, row) * w2 * J(k, col);
       }
 
       if (row == col) sum += s_lambda;
 
-      s_H[row * 8 + col] = sum;
+      H(row, col) = sum;
     }
     __syncthreads();
 
     // ---- 2g: Gradient g = J^T·W^2·e ----
-    // g[r] = Σ_k w_k² · J[k][r] · e[k]  (same W^2 as Hessian)
+    // g[r] = Σ_k w_k² · J(k,r) · e[k]  (same W^2 as Hessian)
     if (threadIdx.x < 6) {
       double sum = 0.0;
       for (int k = 0; k < 6; ++k) {
-        double w_k = c_weight_schedule[0 * 6 + k];
-        sum += s_J[k * 8 + threadIdx.x] * w_k * w_k * s_err[k];
+        double w_k = c_weight_schedule[weight_level * 6 + k];
+        sum += J(k, threadIdx.x) * w_k * w_k * s_err[k];
       }
       s_g[threadIdx.x] = sum;
     }
@@ -228,7 +243,7 @@ __global__ void ik_batch_solve(
       double H_dense[36], g_dense[6];
       for (int r = 0; r < 6; ++r) {
         for (int c = 0; c < 6; ++c) {
-          H_dense[r * 6 + c] = s_H[r * 8 + c];
+          H_dense[r * 6 + c] = H(r, c);
         }
         g_dense[r] = s_g[r];
       }
@@ -275,14 +290,26 @@ __global__ void ik_batch_solve(
     d_results[tid * 6 + threadIdx.x] = s_q[threadIdx.x];
   }
 
-  // Final error evaluation
+  // Final error evaluation (wrist + shovel TCP)
   __syncthreads();
   if (threadIdx.x == 0) {
+    // Wrist pose error
     pose_error(s_T, s_T_tgt, s_err);
     double pos_err = sqrt(s_err[0]*s_err[0] + s_err[1]*s_err[1] + s_err[2]*s_err[2]);
     double rot_err = sqrt(s_err[3]*s_err[3] + s_err[4]*s_err[4] + s_err[5]*s_err[5]);
     d_errors[tid * 2 + 0] = pos_err;
     d_errors[tid * 2 + 1] = rot_err;
+
+    // Shovel TCP error: compute TCP transform from wrist FK result
+    shovel_tcp_transform(s_T, c_T_wrist3_to_tcp, s_T_tcp);
+    shovel_tcp_transform(s_T_tgt, c_T_wrist3_to_tcp, s_T_tcp_tgt);
+    double shovel_pos_err, shovel_rot_err;
+    shovel_pose_error(s_T_tcp, s_T_tcp_tgt, &shovel_pos_err, &shovel_rot_err);
+    if (d_shovel_errors) {
+      d_shovel_errors[tid * 2 + 0] = shovel_pos_err;
+      d_shovel_errors[tid * 2 + 1] = shovel_rot_err;
+    }
+
     d_iterations[tid] = (double)s_iter_count;
   }
 }
@@ -338,16 +365,18 @@ __global__ void compute_continuity_cost(
 
 cudaError_t launch_ik_batch_solve(
     const double* d_targets, const double* d_seeds,
-    double* d_results, double* d_errors, double* d_iterations,
-    int max_iter, double pos_tol, double orient_tol, int N,
+    double* d_results, double* d_errors, double* d_shovel_errors,
+    double* d_iterations,
+    int max_iter, double pos_tol, double orient_tol, int weight_level, int N,
     cudaStream_t stream = 0)
 {
   dim3 grid(N, 1, 1);
   dim3 block(128, 1, 1);
 
   ik_batch_solve<<<grid, block, 0, stream>>>(
-      d_targets, d_seeds, d_results, d_errors, d_iterations,
-      max_iter, pos_tol, orient_tol, N);
+      d_targets, d_seeds, d_results, d_errors, d_shovel_errors,
+      d_iterations,
+      max_iter, pos_tol, orient_tol, weight_level, N);
 
   return cudaGetLastError();
 }

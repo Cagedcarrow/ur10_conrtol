@@ -17,8 +17,11 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 # CUDA architecture: Ada Lovelace (RTX 4060 Laptop: sm_89)
 set(CMAKE_CUDA_ARCHITECTURES 89)
 
-# CompileIQ AI compiler auto-tuning (CUDA 13.3)
-# Uncomment to enable: add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>)
+# CUDA 13.3 CompileIQ: not available in CUDA 13.3 (nvcc --help shows no -compileiq flag).
+# Investigation (2026-06-05): checked nvcc 13.3.33 flags — CompileIQ AI auto-tuning
+# is not a supported feature in this release. Manual optimization is used instead.
+# If CompileIQ becomes available in a future CUDA release, enable with:
+#   target_compile_options(rtfg_cuda_core PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-compileiq>)
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
@@ -69,6 +72,7 @@ add_library(rtfg_cuda_core STATIC
   # CUDA sources
   src/cuda/cuda_ik_solver.cu
   src/cuda/cuda_kernels.cu
+  src/cuda/cuda_collision.cu
   src/cuda/cuda_memory.cu
 )
 

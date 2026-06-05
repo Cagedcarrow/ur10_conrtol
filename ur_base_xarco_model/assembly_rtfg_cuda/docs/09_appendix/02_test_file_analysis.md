@@ -99,7 +99,7 @@ nvcc -arch=sm_89 -O3 -lineinfo --ptxas-options=-v \
 === Test Batch Solve (273 targets) ===
   Batch solve: 273/273 converged
   Avg pos_err = 0.0123 m, avg rot_err = 2.45 deg
-  Avg iterations = 7.9, max iterations = 42
+  Avg iterations = 6.7, max iterations = 42
   Result: PASSED
 
 === Test Continuity Cost ===

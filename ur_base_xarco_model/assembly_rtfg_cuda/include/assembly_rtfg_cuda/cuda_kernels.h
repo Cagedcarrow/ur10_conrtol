@@ -15,11 +15,13 @@ cudaError_t launch_ik_batch_solve(
     const double* d_targets,     // [N, 16] target transforms
     const double* d_seeds,        // [N, 6]  initial seed joint angles
     double* d_results,            // [N, 6]  output joint angles
-    double* d_errors,             // [N, 2]  output (pos_err, rot_err)
+    double* d_errors,             // [N, 2]  output (pos_err, rot_err) at wrist
+    double* d_shovel_errors,      // [N, 2]  output (pos_err, rot_err) at shovel TCP
     double* d_iterations,         // [N]     iterations used per point
     int max_iter,                 // max DLS iterations
     double pos_tol,               // position tolerance (m)
     double orient_tol,            // orientation tolerance (rad)
+    int weight_level,             // weight schedule level (0=strictest, 3=position-only)
     int N,                        // number of target poses
     cudaStream_t stream = 0);
 

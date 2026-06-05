@@ -61,7 +61,7 @@ docs/
 │
 ├── 07_performance/                              # 性能分析
 │   ├── README.md
-│   ├── 01_speedup_analysis.md                   # 843× 加速比
+│   ├── 01_speedup_analysis.md                   # 960× 加速比
 │   ├── 02_ncu_metrics.md                        # Nsight Compute 指标
 │   ├── 03_roofline_model.md                     # Roofline 模型
 │   ├── 04_three_versions_comparison.md          # 三版本对比
@@ -109,18 +109,18 @@ docs/
 |------|-----|
 | GPU | RTX 4060 Laptop (Ada Lovelace, sm_89) |
 | CUDA 版本 | 13.3 |
-| 批处理 IK 时间 (273 目标) | **7.35 ms** |
-| 加速比 (vs CPU KDL) | **843×** |
-| 寄存器/线程 | 98 (零溢出) |
-| 共享内存/Block | 1,676 B |
+| 批处理 IK 时间 (273 目标) | **6.434 ms** |
+| 加速比 (vs CPU KDL) | **960×** |
+| 寄存器/线程 | 96 (零溢出) |
+| 共享内存/Block | 1,616 B |
 | Bank 冲突 | 0 |
-| FP64 算术强度 | 157 FLOP/Byte |
+| FP64 算术强度 | 150 FLOP/Byte |
 
 ## 论文引用
 
 本文档对应论文 "cuda加速算法设计.pdf"，涵盖以下核心贡献：
 
-1. **CUDA 批处理 IK 求解器**: 273 个独立 IK 任务并行化，843× 加速比
+1. **CUDA 批处理 IK 求解器**: 273 个独立 IK 任务并行化，960× 加速比
 2. **Warp 级分工设计**: 4 Warp 分别负责 FK/Jacobian/Hessian/LDL^T
 3. **内存层次优化**: 常量内存广播、共享内存 8 列填充、寄存器零溢出
 4. **自适应 DLS 算法**: 加权阻尼 + 停滞恢复 + 发散检测

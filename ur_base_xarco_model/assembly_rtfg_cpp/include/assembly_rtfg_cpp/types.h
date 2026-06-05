@@ -76,6 +76,8 @@ struct CandidateInfo {
   Eigen::VectorXd q;
   double pos_err = std::numeric_limits<double>::infinity();
   double rot_err = std::numeric_limits<double>::infinity();
+  double shovel_pos_err = std::numeric_limits<double>::infinity();  // Shovel TCP position error (m)
+  double shovel_rot_err = std::numeric_limits<double>::infinity();  // Shovel TCP rotation error (rad)
   double clearance = -std::numeric_limits<double>::infinity();
   double cost = std::numeric_limits<double>::infinity();
   double joint_cost = std::numeric_limits<double>::infinity();

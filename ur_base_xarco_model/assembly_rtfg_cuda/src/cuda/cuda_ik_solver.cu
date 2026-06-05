@@ -302,6 +302,9 @@ void CudaBatchIK::ensureCapacity(int N) {
   if (!d_errors_ || d_errors_->size() < static_cast<size_t>(N * 2)) {
     d_errors_ = std::make_unique<cuda::DeviceBuffer<double>>(N * 2);
   }
+  if (!d_shovel_errors_ || d_shovel_errors_->size() < static_cast<size_t>(N * 2)) {
+    d_shovel_errors_ = std::make_unique<cuda::DeviceBuffer<double>>(N * 2);
+  }
   if (!d_iterations_ || d_iterations_->size() < static_cast<size_t>(N)) {
     d_iterations_ = std::make_unique<cuda::DeviceBuffer<double>>(N);
   }
@@ -358,10 +361,12 @@ void CudaBatchIK::flush(std::vector<CandidateInfo>& results) {
   // --- Launch kernel ---
   cuda::launch_ik_batch_solve(
       d_targets_->get(), d_seeds_->get(),
-      d_results_->get(), d_errors_->get(), d_iterations_->get(),
+      d_results_->get(), d_errors_->get(), d_shovel_errors_->get(),
+      d_iterations_->get(),
       cfg_.max_iterations,
       cfg_.ik_position_tolerance,
       pending_[0].orient_limit,
+      0,    // weight_level: 0=full pos+rot, 1-2=reduced rot, 3=position-only
       N, stream_);
 
   cudaDeviceSynchronize();
@@ -369,9 +374,11 @@ void CudaBatchIK::flush(std::vector<CandidateInfo>& results) {
   // --- Read back results ---
   std::vector<double> h_results(N * 6);
   std::vector<double> h_errors(N * 2);
+  std::vector<double> h_shovel_errors(N * 2);
   std::vector<double> h_iters(N);
   d_results_->toHost(h_results.data());
   d_errors_->toHost(h_errors.data());
+  d_shovel_errors_->toHost(h_shovel_errors.data());
   d_iterations_->toHost(h_iters.data());
 
   // --- Build CandidateInfo results ---
@@ -385,6 +392,8 @@ void CudaBatchIK::flush(std::vector<CandidateInfo>& results) {
     }
     cand.pos_err = h_errors[i * 2 + 0];
     cand.rot_err = h_errors[i * 2 + 1];
+    cand.shovel_pos_err = h_shovel_errors[i * 2 + 0];
+    cand.shovel_rot_err = h_shovel_errors[i * 2 + 1];
     cand.iterations_used = static_cast<int>(h_iters[i]);
     cand.valid = (cand.pos_err < 1.0);
     cand.clearance = std::numeric_limits<double>::infinity();
@@ -459,6 +468,89 @@ void CudaBatchIK::clear() {
   pending_.clear();
   h_targets_.clear();
   h_seeds_.clear();
+}
+
+// ============================================================================
+// GPU Collision Detection Implementation
+// ============================================================================
+
+void CudaBatchIK::ensureCollisionCapacity(int N_frames, int N_boxes, int N_objects) {
+  size_t robot_boxes_needed = static_cast<size_t>(N_frames) * N_boxes * 6;
+  if (!d_robot_boxes_ || d_robot_boxes_->size() < robot_boxes_needed) {
+    d_robot_boxes_ = std::make_unique<cuda::DeviceBuffer<double>>(robot_boxes_needed);
+  }
+  if (!d_clearances_ || d_clearances_->size() < static_cast<size_t>(N_frames)) {
+    d_clearances_ = std::make_unique<cuda::DeviceBuffer<double>>(N_frames);
+  }
+  if (!d_colliding_ || d_colliding_->size() < static_cast<size_t>(N_frames)) {
+    d_colliding_ = std::make_unique<cuda::DeviceBuffer<double>>(N_frames);
+  }
+}
+
+void CudaBatchIK::uploadEnvironment(const std::vector<double>& env_objects) {
+  N_env_objects_ = static_cast<int>(env_objects.size()) / 8;
+  if (N_env_objects_ == 0) {
+    // No objects to check — clear the buffer to avoid stale data
+    d_env_objects_.reset();
+    return;
+  }
+
+  size_t needed = static_cast<size_t>(N_env_objects_) * 8;
+  if (!d_env_objects_ || d_env_objects_->size() < needed) {
+    d_env_objects_ = std::make_unique<cuda::DeviceBuffer<double>>(needed);
+  }
+  // Copy non-const data via const_cast (toDevice expects non-const for memcpy src)
+  std::vector<double> env_copy = env_objects;
+  d_env_objects_->toDevice(env_copy.data());
+}
+
+void CudaBatchIK::updateRobotBoxesGPU(const std::vector<double>& robot_boxes,
+                                       int N_frames, int N_boxes) {
+  ensureCollisionCapacity(N_frames, N_boxes, N_env_objects_ > 0 ? N_env_objects_ : 1);
+
+  size_t expected = static_cast<size_t>(N_frames) * N_boxes * 6;
+  if (robot_boxes.size() < expected) {
+    throw std::runtime_error(
+        "updateRobotBoxesGPU: robot_boxes size " + std::to_string(robot_boxes.size()) +
+        " < expected " + std::to_string(expected));
+  }
+  std::vector<double> boxes_copy = robot_boxes;
+  d_robot_boxes_->toDevice(boxes_copy.data());
+}
+
+std::pair<std::vector<double>, std::vector<double>>
+CudaBatchIK::checkCollisionsGPU(int N_frames, int N_boxes) {
+  std::vector<double> clearances(N_frames, std::numeric_limits<double>::infinity());
+  std::vector<double> colliding(N_frames, 0.0);
+
+  if (N_env_objects_ <= 0 || !d_env_objects_) {
+    return {clearances, colliding};  // No environment → no collisions
+  }
+
+  if (!d_robot_boxes_) {
+    return {clearances, colliding};  // No robot boxes uploaded
+  }
+
+  // Launch GPU collision kernel
+  cudaError_t err = cuda::launch_collision_check_batch(
+      d_robot_boxes_->get(), d_env_objects_->get(),
+      d_clearances_->get(), d_colliding_->get(),
+      N_frames, N_boxes, N_env_objects_,
+      stream_);
+
+  if (err != cudaSuccess) {
+    throw std::runtime_error(
+        "checkCollisionsGPU: kernel launch failed: " +
+        std::string(cudaGetErrorString(err)));
+  }
+
+  cudaStreamSynchronize(stream_);
+
+  // Read back results
+  d_clearances_->toHost(clearances.data());
+  d_colliding_->toHost(colliding.data());
+
+  return {clearances, colliding};
 }
 
 }  // namespace rtfg

@@ -155,7 +155,7 @@ if (threadIdx.x < 16) {
 对于 N=273 的批处理：
 - H2D 传输: ~10-20 μs (cudaMemcpyAsync, 与 Kernel launch 重叠)
 - D2H 传输: ~5-10 μs (cudaMemcpyAsync, 需要等待 Kernel 完成)
-- 总传输开销占 GPU 总时间 (7.35 ms) 的比例: **< 0.3%**
+- 总传输开销占 GPU 总时间 (6.434 ms) 的比例: **< 0.3%**
 
 ## 相关代码行号
 

@@ -88,16 +88,16 @@ double h_lambda[4] = {
 
 ### GPU 与 CPU 差异
 
-本功能包当前在 Kernel 内部**硬编码**了 λ 参数，未使用 `c_lambda_params`：
+本功能包当前从常量内存 `c_lambda_params` 读取基准阻尼参数，在 Kernel 内部结合误差大小进行计算：
 
-| 参数 | GPU Kernel (硬编码) | CPU 配置传参 | 差异原因 |
+| 参数 | GPU Kernel | CPU 配置传参 | 差异原因 |
 |------|-------------------|-------------|---------|
 | 最小 λ | 2e-3 | cfg.lambda (~1e-3) | GPU 更保守防止发散 |
 | 近距离公式 | 2e-3 + 8e-3×e/0.05 | 5e-4 + 5e-3×e/0.05 | GPU 更高基础阻尼 |
 | 远距离上限 | 0.15 | 0.1 | GPU 适度放宽 |
 | 停滞上限 | 0.5 | 0.5 | 相同 |
 
-**未来优化**：可以从 `c_lambda_params` 常量内存读取这些参数，使 GPU Kernel 参数可配置。
+**注**: GPU Kernel 从常量内存 `c_lambda_params`（`cuda_utilities.cuh:86`）读取阻尼基准参数，灵活可配置。
 
 ## 阻尼效果分析
 

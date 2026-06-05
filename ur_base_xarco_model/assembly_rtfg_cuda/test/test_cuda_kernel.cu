@@ -19,8 +19,16 @@
 #include <cstring>
 #include <cassert>
 
+// Define CUDA_DEFINE_CONSTANTS so __constant__ variables are defined (not extern)
+// in this translation unit. The kernel source is included below for single-TU build.
+#define CUDA_DEFINE_CONSTANTS
 // Include CUDA utilities for device helpers (in namespace rtfg::cuda)
 #include "cuda_utilities.cuh"
+
+// Include kernel and collision source directly to form a single translation unit.
+// This avoids the NVCC extern __constant__ cross-TU linking limitation.
+#include "../src/cuda/cuda_kernels.cu"
+#include "../src/cuda/cuda_collision.cu"
 
 // Bring namespaced symbols into scope for host-side cudaMemcpyToSymbol
 using namespace rtfg::cuda;
@@ -103,28 +111,8 @@ static const double k_weights[24] = {
 
 static const double k_lambda_params[4] = {5e-4, 0.1, 5e-4, 0.05};
 
-// ============================================================================
-// External kernel declarations (defined in cuda_kernels.cu)
-// ============================================================================
-namespace rtfg { namespace cuda {
-__global__ void ik_batch_solve(
-    const double* __restrict__ d_targets,
-    const double* __restrict__ d_seeds,
-    double* __restrict__ d_results,
-    double* __restrict__ d_errors,
-    double* __restrict__ d_iterations,
-    const int    max_iter,
-    const double pos_tol,
-    const double orient_tol,
-    const int    N);
-
-__global__ void compute_continuity_cost(
-    const double* __restrict__ d_results,
-    const double* __restrict__ d_q_prev,
-    const double* __restrict__ d_dq_prev,
-    double* __restrict__ d_costs,
-    int N);
-}}
+// Kernels are included directly from src/cuda/cuda_kernels.cu (single-TU build).
+// No external declarations needed.
 
 // ============================================================================
 // CPU reference: Rodrigues rotation formula
@@ -745,8 +733,8 @@ int main() {
         dim3 grid(N_SINGLE, 1, 1);
         dim3 block(128, 1, 1);
         rtfg::cuda::ik_batch_solve<<<grid, block>>>(
-            d_targets, d_seeds, d_results, d_errors, d_iters,
-            max_iter, pos_tol, orient_tol, N_SINGLE);
+            d_targets, d_seeds, d_results, d_errors, nullptr, d_iters,
+            max_iter, pos_tol, orient_tol, 0, N_SINGLE);
 
         err = cudaGetLastError();
         cudaDeviceSynchronize();
@@ -811,8 +799,8 @@ int main() {
         dim3 grid(N_SINGLE, 1, 1);
         dim3 block(128, 1, 1);
         rtfg::cuda::ik_batch_solve<<<grid, block>>>(
-            d_targets, d_seeds, d_results, d_errors, d_iters,
-            max_iter, pos_tol, orient_tol, N_SINGLE);
+            d_targets, d_seeds, d_results, d_errors, nullptr, d_iters,
+            max_iter, pos_tol, orient_tol, 0, N_SINGLE);
 
         err = cudaGetLastError();
         cudaDeviceSynchronize();
@@ -903,8 +891,8 @@ int main() {
         dim3 grid(N_BATCH, 1, 1);
         dim3 block(128, 1, 1);
         rtfg::cuda::ik_batch_solve<<<grid, block>>>(
-            d_targets, d_seeds, d_results, d_errors, d_iters,
-            max_iter, pos_tol, orient_tol, N_BATCH);
+            d_targets, d_seeds, d_results, d_errors, nullptr, d_iters,
+            max_iter, pos_tol, orient_tol, 0, N_BATCH);
         cudaEventRecord(stop);
 
         err = cudaGetLastError();
@@ -1050,6 +1038,122 @@ int main() {
         free(h_results_cost);
         cudaFree(d_results); cudaFree(d_q_prev);
         cudaFree(d_dq_prev); cudaFree(d_costs);
+    }
+
+    // ========================================================================
+    // Test 5: GPU Collision Detection — box-box/box-sphere/box-cylinder
+    // ========================================================================
+    printf("--- Test 5: GPU Collision Detection ---\n");
+
+    {
+        const int N_FRAMES = 100;
+        const int N_BOXES = 8;
+        const int N_OBJECTS = 5;
+
+        // Generate robot boxes (N_FRAMES × N_BOXES × 6)
+        double *h_robot_boxes = (double*)malloc(N_FRAMES * N_BOXES * 6 * sizeof(double));
+        // Generate env objects (N_OBJECTS × 8): type + params
+        double h_env_objects[N_OBJECTS * 8] = {
+            // Type 0: box at origin, 0.5m half-extents
+            0.0,  0.0, 0.0, 0.0,  0.5, 0.5, 0.5, 0.0,
+            // Type 0: box offset in X
+            0.0,  1.0, 0.0, 0.0,  0.3, 0.3, 0.3, 0.0,
+            // Type 1: sphere
+            1.0, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0, 0.0,
+            // Type 2: cylinder (vertical, Z-aligned)
+            2.0,  0.5, 0.5, 0.0, 0.1, 0.4, 0.0, 0.0,
+            // Type 0: box near robot workspace
+            0.0,  0.3, -0.3, 0.2, 0.2, 0.2, 0.15, 0.0,
+        };
+
+        // Robot boxes: each frame has 8 boxes (simplified UR10 links)
+        // Frame 0: boxes at random positions
+        unsigned s2 = 12345;
+        for (int f = 0; f < N_FRAMES; ++f) {
+            for (int b = 0; b < N_BOXES; ++b) {
+                s2 = s2 * 1103515245 + 12345;
+                double u = (double)(s2 & 0x7FFFFFFF) / 2147483648.0;
+                int idx = (f * N_BOXES + b) * 6;
+                h_robot_boxes[idx + 0] = u * 2.0 - 1.0;      // cx: -1..1
+                h_robot_boxes[idx + 1] = (u + 0.1) * 1.5;    // cy: 0..1.5
+                h_robot_boxes[idx + 2] = u * 1.5;             // cz: 0..1.5
+                h_robot_boxes[idx + 3] = 0.05 + u * 0.15;     // hx: 0.05..0.2
+                h_robot_boxes[idx + 4] = 0.05 + ((1.0-u) * 0.15);  // hy
+                h_robot_boxes[idx + 5] = 0.05 + u * 0.1;      // hz
+            }
+        }
+
+        // Device memory
+        double *d_robot_boxes, *d_env_objects, *d_clearances, *d_colliding;
+        cudaMalloc(&d_robot_boxes, N_FRAMES * N_BOXES * 6 * sizeof(double));
+        cudaMalloc(&d_env_objects, N_OBJECTS * 8 * sizeof(double));
+        cudaMalloc(&d_clearances, N_FRAMES * sizeof(double));
+        cudaMalloc(&d_colliding, N_FRAMES * sizeof(double));
+
+        cudaMemcpy(d_robot_boxes, h_robot_boxes,
+                   N_FRAMES * N_BOXES * 6 * sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_env_objects, h_env_objects,
+                   N_OBJECTS * 8 * sizeof(double), cudaMemcpyHostToDevice);
+
+        // Time the kernel
+        cudaEvent_t cs, ce;
+        cudaEventCreate(&cs); cudaEventCreate(&ce);
+
+        cudaError_t col_err = rtfg::cuda::launch_collision_check_batch(
+            d_robot_boxes, d_env_objects, d_clearances, d_colliding,
+            N_FRAMES, N_BOXES, N_OBJECTS, 0);
+
+        if (col_err != cudaSuccess) {
+            printf("  COLLISION KERNEL ERROR: %s\n", cudaGetErrorString(col_err));
+        } else {
+            cudaDeviceSynchronize();
+
+            // Read back
+            double h_clearances[N_FRAMES];
+            double h_colliding[N_FRAMES];
+            cudaMemcpy(h_clearances, d_clearances,
+                       N_FRAMES * sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(h_colliding, d_colliding,
+                       N_FRAMES * sizeof(double), cudaMemcpyDeviceToHost);
+
+            // Analyze
+            int n_collisions = 0;
+            double min_clearance = 1e10;
+            double max_clearance = -1e10;
+            for (int f = 0; f < N_FRAMES; ++f) {
+                if (h_colliding[f] > 0.5) n_collisions++;
+                if (h_clearances[f] < min_clearance) min_clearance = h_clearances[f];
+                if (h_clearances[f] > max_clearance && h_clearances[f] < 1e9)
+                    max_clearance = h_clearances[f];
+            }
+
+            printf("  Frames=%d, Boxes=%d, Objects=%d, Pairs=%d\n",
+                   N_FRAMES, N_BOXES, N_OBJECTS, N_BOXES * N_OBJECTS);
+            printf("  Collisions: %d/%d frames (%.1f%%)\n",
+                   n_collisions, N_FRAMES, 100.0 * n_collisions / N_FRAMES);
+            printf("  Min clearance: %.4f m, Max clearance: %.4f m\n",
+                   min_clearance, max_clearance);
+
+            // Verify: min_clearance should NOT be infinity (real data)
+            bool valid_clearance = (min_clearance < 1e9);
+            // Verify: at least some frames should have valid clearance
+            bool has_valid = (max_clearance > -1e9);
+
+            printf("  Collision test: %s\n",
+                   (valid_clearance && has_valid) ? "PASS ✓" : "FAIL ✗");
+
+            // Show first few frames
+            printf("  First 5 frames: ");
+            for (int f = 0; f < 5; ++f) {
+                printf("[c=%.3f col=%d] ", h_clearances[f], (int)h_colliding[f]);
+            }
+            printf("\n");
+        }
+
+        free(h_robot_boxes);
+        cudaFree(d_robot_boxes); cudaFree(d_env_objects);
+        cudaFree(d_clearances); cudaFree(d_colliding);
+        cudaEventDestroy(cs); cudaEventDestroy(ce);
     }
 
     printf("\n=== All tests complete ===\n");

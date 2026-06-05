@@ -4,7 +4,7 @@
 
 | 文件 | 内容 |
 |------|------|
-| [01_speedup_analysis.md](01_speedup_analysis.md) | 843× 加速比详细分析 |
+| [01_speedup_analysis.md](01_speedup_analysis.md) | 960× 加速比详细分析 |
 | [02_ncu_metrics.md](02_ncu_metrics.md) | Nsight Compute 实测指标 |
 | [03_roofline_model.md](03_roofline_model.md) | Roofline 模型验证与理论分析 |
 | [04_three_versions_comparison.md](04_three_versions_comparison.md) | MATLAB → C++ → CUDA 三版本对比 |

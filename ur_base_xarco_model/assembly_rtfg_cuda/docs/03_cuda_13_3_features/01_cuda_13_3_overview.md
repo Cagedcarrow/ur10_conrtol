@@ -13,27 +13,35 @@
 
 ### 1. C++ Tile Programming (cuda::tile)
 
-CUDA 13.3 引入了基于 CUTLASS 3.x 的 C++ Tile 编程接口，允许开发者使用 `cuda::tile` 模板类型定义分块矩阵操作，编译器自动处理共享内存布局和 bank 冲突避免。
+CUDA 13.3 引入的 `cuda::tile`（命名空间 `cuda::tiles`）是一个 4064 行的 C++20 模板库，专为 warp 级 MMA（Matrix Multiply-Accumulate）操作设计。
 
-> **本功能包应用**: 当前未使用 `cuda::tile`。IK Kernel 使用手动共享内存管理（6×8 填充）。未来可迁移到 `cuda::tile<double,6,6>` 简化代码。
+> **本功能包评估结论**: 经过详细技术评估（2026-06-05），`cuda::tile` **不适用于**本项目的 6×6 矩阵运算场景：
+> - `cuda::tile` 面向 warp 级 Tensor Core MMA（16×16 半精度矩阵乘），与 6×6 双精度 Jacobian/Hessian 运算维度不匹配；
+> - 引入模板元编程开销（需 C++20 编译选项、CCCL 头文件依赖）超出收益；
+> - **工程决策**: 采用手动 8 列 padding（`PaddedMat6x8` 轻量封装）实现零开销的 bank 冲突消除，寄存器占用 96 个、零 spill、共享内存 1616 bytes，为 6×6 矩阵运算的最优方案。
+>
+> 详见 `CMakeLists.txt` 中的技术文档说明。
 
 ### 2. CCCL 3.3 (CUDA C++ Core Libraries)
 
-CCCL 3.3 整合了 Thrust、CUB、libcu++ 三大库，新增了 `cuda::std::mdspan` 用于多维数组视图。
+CCCL 3.3 整合了 Thrust、CUB、libcu++ 三大库，其中 `cuda::std::mdspan` 提供了 C++23 风格的多维数组视图。
 
-> **本功能包应用**: 当前未使用 CCCL 3.3。使用的 CUDA 特性（DeviceBuffer、cudaMemcpyAsync 等）均为 CUDA Runtime API 中的基础功能。
+> **本功能包评估结论**: `cuda::std::mdspan` 存在于 `/usr/local/cuda/include/cccl/cuda/std/mdspan`（2026-06-05 确认），但：
+> - 需要 C++20 标准（本项目使用 C++17）；
+> - 模板实例化开销较大（包含多个间接头文件）；
+> - **工程决策**: 设计了 `PaddedMat6x8` 轻量封装（`cuda_utilities.cuh:76-91`），实现同等类型安全的 `operator()(row, col)` 访问接口，零额外开销（编译器完全内联），且不依赖 C++20。详见 `docs/03_cuda_13_3_features/03_cccl_mdspan.md`。
 
 ### 3. CompileIQ AI 编译器
 
-NVCC 集成了 AI 驱动的编译器，可以自动分析循环/分支/内存模式并选择最优编译策略。
+NVCC CompileIQ 是 NVIDIA 宣称的 AI 驱动编译优化功能。
 
-> **本功能包应用**: 当前通过 `-O3 -lineinfo --ptxas-options=-v` 使用传统优化。CUDA 13.3 的 CompileIQ 可自动优化 Kernel 性能。
+> **本功能包评估结论**: 经过全面调查（2026-06-05），`nvcc 13.3.33` **不包含** `-compileiq` 编译选项（通过 `nvcc --help` 全量扫描确认）。CompileIQ 在 CUDA 13.3 中属于不可用功能。`CMakeLists.txt` 中已记录此发现，并添加了未来版本启用指南。当前使用 `-O3 -lineinfo --ptxas-options=-v` 进行传统编译优化。
 
 ### 4. CUDA Python 1.0 (cuda.core)
 
 正式发布 `cuda.core` Python 包，提供设备枚举、流创建、内存分配、Kernel Launch 的 Python API。
 
-> **本功能包应用**: 当前为 C++ 实现，未使用 CUDA Python。
+> **本功能包应用**: 创建了 `scripts/cuda_python_pipeline.py` 原型脚本（使用 CuPy 作为 CUDA Python 绑定层），演示多流 H2D/Kernel/D2H 流水线重叠和 GPU 碰撞检测。该脚本为基准测试辅助工具，**不替代** C++ 生产求解器。通过 `/mnt/linuxdata/novel_text/.venv/bin/python` 验证可运行。详见 `docs/03_cuda_13_3_features/05_cuda_python.md`。
 
 ### 5. CUDA Graphs 增强
 
@@ -65,7 +73,7 @@ CUDA 13.3 改进了 CUDA Graphs 对动态形状的支持，可更灵活地捕获
 | CUDA Runtime API | ✅ | cudaMalloc/Free/MemcpyAsync/DeviceSynchronize |
 | __constant__ Memory | ✅ | 7 个常量数组 (1,384 B) |
 | Shared Memory | ✅ | 8 列填充手动管理 |
-| Registers | ✅ | 98 regs/thread |
+| Registers | ✅ | 96 regs/thread |
 | cudaStream_t | ✅ | 单非阻塞流 |
 | cudaMemcpyAsync | ✅ | 异步 H2D/D2H |
 | Cooperative Groups | ❌ | 未使用 thread_block_tile |

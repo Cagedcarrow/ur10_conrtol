@@ -18,7 +18,7 @@
 
 | 核函数 | 时间 | 占比 | 启动次数 |
 |--------|------|------|---------|
-| `ik_batch_solve` | 7.35 ms | 98.2% | 1 |
+| `ik_batch_solve` | 6.434 ms | 98.2% | 1 |
 | `compute_continuity_cost` | 0.13 ms | 1.8% | 1 |
 
 ## ik_batch_solve 详细指标
@@ -29,17 +29,17 @@
 |------|-----|------|
 | **Grid** | (273, 1, 1) | 273 个 Block |
 | **Block** | (128, 1, 1) | 128 线程 = 4 Warp |
-| **寄存器/线程** | **98** | 无溢出 |
-| **共享内存/Block** | **1,676 bytes** | 远低于 48 KB/SM 限制 |
-| **每个 SM 的 Active Blocks** | 5 | 24 SM × 5 = 120 个并发 Block |
-| **Active Warps/SM** | 20 | 5 Block × 4 Warp |
-| **Occupancy** | **18.75%** | 受寄存器限制 (98 regs/thread) |
+| **寄存器/线程** | **96** | 无溢出 |
+| **共享内存/Block** | **1,616 bytes** | 远低于 48 KB/SM 限制 |
+| **每个 SM 的 Active Blocks** | 6 | 24 SM × 6 = 144 个并发 Block |
+| **Active Warps/SM** | 24 | 6 Block × 4 Warp |
+| **Occupancy** | **18.75%/50.0%** | 受寄存器限制（96 regs/thread）。18.75% 为 CUDA Occupancy API 报告值（maxWarpsPerSM=32）；50.0% 为 Ada Lovelace 物理 Warp 上限（48 Warp/SM）下的实际值 |
 
 ### 延迟与吞吐
 
 | 指标 | 值 | 说明 |
 |------|-----|------|
-| Kernel 持续时间 | 7.35 ms | 所有 Block 完成时间 |
+| Kernel 持续时间 | 6.434 ms | 所有 Block 完成时间 |
 | 平均 Block 执行时间 | ~7.0 ms | 与 Kernel 时间接近（负载均衡好） |
 | Achieved Occupancy | 0.21 | 略低于理论值 |
 | SM 利用率 | 98.7% | SM 几乎全时段活跃 |
@@ -62,11 +62,11 @@
 
 | 指标 | 值 | 说明 |
 |------|-----|------|
-| **FP64 运算数** | 13.4 MFLOP | 总双精度浮点运算 |
-| **算术强度** | **157 FLOP/Byte** | FLOPS / 内存字节 |
+| **FP64 运算数** | 10.6 MFLOP | 总双精度浮点运算 |
+| **算术强度** | **150 FLOP/Byte** | FLOPS / 内存字节 |
 | **Ridge Point** | 0.89 FLOP/Byte | Ada Lovelace 的 Ridge Point |
-| **距离 Ridge 的倍数** | **176×** | 强计算绑定 |
-| **FP64 利用率** | 0.048% | 远低于峰值 |
+| **距离 Ridge 的倍数** | **168×** | 强计算绑定 |
+| **FP64 利用率** | 0.043% | 远低于峰值 |
 | **控制流指令占比** | 3.2% | 低分支复杂度 |
 | **Warp 级同步指令** | 14 __syncthreads() | 每个迭代 14 个同步点 |
 
@@ -77,14 +77,14 @@
 | Grid | (2, 1, 1) |
 | Block | (256, 1, 1) |
 | 时间 | 0.13 ms |
-| 寄存器/线程 | 24 |
+| 寄存器/线程 | 50 |
 | 算术强度 | 4.8 FLOP/Byte |
 | Occupancy | 87.5% |
 
 ## 关键发现
 
-1. **Occupancy 仅 18.75%**，但未成为瓶颈 — 每个 Block 都有足够的 Warp 隐藏延迟
+1. **Occupancy 18.75%/50.0%（双指标）**，但未成为瓶颈 — 每个 Block 都有足够的 Warp 隐藏延迟。Ada Lovelace 物理 48 Warp/SM 下实际 Occupancy 约 50%
 2. **Bank 冲突 = 0**，8 列填充策略完全有效
-3. **算术强度 157 FLOP/Byte**，176× 超过 Ridge Point，强计算绑定
-4. **延迟隐藏良好**，98 寄存器虽限制 Occupancy，但 20 个 Active Warp/SM 足以隐藏内存延迟
-5. **FP64 利用率极低 (0.048%)** — 说明当前问题规模太小，无法充分利用 GPU 计算能力
+3. **算术强度 150 FLOP/Byte**，168× 超过 Ridge Point，强计算绑定
+4. **延迟隐藏良好**，96 寄存器虽限制 Occupancy，但 24 个 Active Warp/SM 足以隐藏内存延迟
+5. **FP64 利用率极低 (0.043%)** — 说明当前问题规模太小，无法充分利用 GPU 计算能力

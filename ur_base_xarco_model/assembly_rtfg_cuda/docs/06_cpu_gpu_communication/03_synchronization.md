@@ -77,7 +77,7 @@ sequenceDiagram
 
 **性能影响**:
 - `cudaDeviceSynchronize()` 在当前实现中造成 CPU **空闲等待**
-- GPU Kernel 执行约 7.35 ms 期间，CPU 无其他工作
+- GPU Kernel 执行约 6.434 ms 期间，CPU 无其他工作
 - 在端到端流水线中，此等待时间被流水线其他阶段掩盖
 
 ## 2. __syncthreads() — Block 内线程同步

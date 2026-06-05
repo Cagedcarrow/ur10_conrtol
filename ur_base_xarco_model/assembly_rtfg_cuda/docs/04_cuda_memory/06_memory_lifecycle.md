@@ -241,7 +241,7 @@ CudaBatchIK::~CudaBatchIK() {
 |------|---------|------------|------------|------------|
 | 初始化后 | RobotModel (CPU) | 空 | 1,384 bytes 参数 | 未分配 |
 | 缓冲准备后 | pending_ 队列 | N×25 个 double | 同左 | 未分配 |
-| Kernel 执行中 | h_targets_, h_seeds_ | N×25 doubles | 1,384 bytes | 1,676 bytes/block |
+| Kernel 执行中 | h_targets_, h_seeds_ | N×25 doubles | 1,384 bytes | 1,616 bytes/block |
 | 同步后 | h_results, h_errors | 同左 | 同左 | 释放 |
 | 析构后 | 释放 | cudaFree | 释放 | — |
 

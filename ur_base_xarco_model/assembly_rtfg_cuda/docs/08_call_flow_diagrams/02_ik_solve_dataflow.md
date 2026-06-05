@@ -38,9 +38,9 @@ graph TB
         end
         
         subgraph Kernel [ik_batch_solve Kernel]
-            SHARED[Shared Memory 1,676 B<br/>s_q[48] s_T[16] s_T_tgt[16]<br/>s_J[48] s_H[48] s_err[6]<br/>s_g[6] s_dq[6] s_q_ref[6]<br/>s_q_best[6] s_lambda ...]
+            SHARED[Shared Memory 1,616 B<br/>s_q[8] s_T[16] s_T_tgt[16]<br/>s_T_tcp[16] s_T_tcp_tgt[16]<br/>s_J[48] s_H[48] s_err[6]<br/>s_g[6] s_dq[6] s_q_ref[6]<br/>s_q_best[6] s_lambda ...]
             
-            SHARED -->|LDL^T| REG[Register 98 regs/thread<br/>~12,544 regs/block]
+            SHARED -->|LDL^T| REG[Register 96 regs/thread<br/>~12,288 regs/block]
             REG -->|结果| SHARED
         end
         
@@ -131,11 +131,11 @@ graph LR
 | `d_results_` | N × 6 | N × 48 | Global Memory |
 | `d_errors_` | N × 2 | N × 16 | Global Memory |
 | `d_iterations_` | N | N × 8 | Global Memory |
-| `s_q[48]` | 48 (6×8 padding) | 384 | Shared Memory |
+| `s_q[8]` | 8 (6+2 padding) | 64 | Shared Memory |
 | `s_T[16]` | 16 | 128 | Shared Memory |
 | `s_J[48]` | 48 (6×8 padding) | 384 | Shared Memory |
 | `s_H[48]` | 48 (6×8 padding) | 384 | Shared Memory |
 | Constant Memory | 7 arrays | 1,384 | __constant__ |
-| Registers | 98/thread | 12,544/block | Register File |
+| Registers | 96/thread | 12,288/block | Register File |
 
-> N = 273 时: H2D = 47 KB, D2H = 19 KB, 共享内存/Block = 1,676 B
+> N = 273 时: H2D = 47 KB, D2H = 19 KB, 共享内存/Block = 1,616 B
