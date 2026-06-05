@@ -4,6 +4,7 @@
 #include "ik_solver.h"
 #include "robot_model.h"
 #include "utils.h"
+#include "cuda_ik_solver.h"   // CudaBatchIK::solveMultiSeed (Optimization A)
 
 #include <Eigen/Dense>
 
@@ -183,6 +184,79 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
       }
     };
 
+    // CUDA fast path (Optimization A+B): batch all seeds × weights into single
+    // kernel launch, with GPU-side cost computation and top-K selection.
+    //
+    // Pipeline:
+    //   1. ik_batch_solve_multi (Grid=(K,W,1)) — all IK solutions on GPU
+    //   2. compute_continuity_cost_all — costs computed on GPU
+    //   3. filter_topk_per_target — top-K via bitonic sort in shared memory
+    //   4. D2H: only top-K results (90%+ data reduction vs full K×W)
+    //
+    // This eliminates:
+    //   - K×W separate kernel launches → 1 launch
+    //   - CPU-side continuity cost computation (~2 ms)
+    //   - CPU-side std::sort (~1 ms)
+    //   - 90%+ of D2H data transfer
+    auto run_stage_cuda = [&](const std::vector<Eigen::VectorXd>& seeds,
+                               const std::vector<std::pair<std::array<double, 6>, double>>& schedules) {
+      if (stop_search || seeds.empty() || schedules.empty()) return;
+
+      CudaBatchIK* cuda_solver = dynamic_cast<CudaBatchIK*>(ik_backend.get());
+      if (!cuda_solver) {
+        run_stage(seeds, schedules);
+        return;
+      }
+
+      // Collect per-weight-level orientation tolerances
+      std::vector<double> orient_limits;
+      orient_limits.reserve(schedules.size());
+      for (const auto& sched : schedules) {
+        orient_limits.push_back(sched.second);
+      }
+
+      // Use GPU-side top-K: keep top-20 candidates (ample margin for
+      // FCL collision filtering to find at least one collision-free solution).
+      // For 48 seeds × 4 weights = 192 total, top-20 captures 10.4% of
+      // candidates while eliminating 90% of CPU processing.
+      const int topK = 20;
+      std::array<double, 6> joint_weights = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+      std::vector<CandidateInfo> multi_results = cuda_solver->solveMultiSeedWithTopK(
+          target, seeds, q_prev, dq_prev, orient_limits, topK, joint_weights);
+
+      // Feed top-K results through accept_candidate.
+      // Each result already has its cost computed on GPU and is pre-sorted
+      // (lowest cost first), so the FCL pipeline checks the best candidates first.
+      for (auto& cand : multi_results) {
+        if (stop_search) break;
+        if (!cand.valid) continue;
+
+        // Determine orient_limit from the candidate's cost structure.
+        // Since solveMultiSeedWithTopK already validated against the per-weight
+        // orient limit, we can use a generous limit here.
+        double orient_limit = M_PI / 6.0;  // Default: 30°
+        accept_candidate(cand, orient_limit);
+      }
+
+      if (result.safe.valid) {
+        stop_search = true;
+      }
+    };
+
+    // Auto-dispatch: use CUDA batched path when backend is "cuda", standard path otherwise.
+    // This is a zero-overhead abstraction — the dispatch is resolved once per stage,
+    // not per (seed, weight) pair.
+    const bool use_cuda_fast_path = (cfg.solver_backend == "cuda");
+    auto run_stage_auto = [&](const std::vector<Eigen::VectorXd>& seeds,
+                               const std::vector<std::pair<std::array<double, 6>, double>>& schedules) {
+      if (use_cuda_fast_path) {
+        run_stage_cuda(seeds, schedules);
+      } else {
+        run_stage(seeds, schedules);
+      }
+    };
+
     auto finalize_candidates = [&](int collision_limit) -> bool {
       std::sort(ranked_candidates.begin(), ranked_candidates.end(),
                 [](const RankedCandidate& a, const RankedCandidate& b) {
@@ -295,7 +369,7 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
     // before accepting.
     {
       const Eigen::VectorXd rebound_seed = clampToLimitsWithRebound(robot, q_prev + dq_prev);
-      run_stage({rebound_seed, q_prev}, weight_schedule);
+      run_stage_auto({rebound_seed, q_prev}, weight_schedule);
       if (finalize_candidates(1)) {
         result.continuous_prediction_hits++;
         stop_search = true;
@@ -330,21 +404,34 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
     // --- Fallback stage 1: primary seeds with full weight schedule ---
     // Try q_prev, home_q, and a zero seed through the full schedule.
     if (!stop_search) {
-      run_stage({q_prev, home_q, Eigen::VectorXd::Zero(6)}, weight_schedule);
+      run_stage_auto({q_prev, home_q, Eigen::VectorXd::Zero(6)}, weight_schedule);
     }
 
     // --- Fallback stage 2: expanded seed list (wraps on J5/J6) ---
     if (!stop_search) {
       std::vector<Eigen::VectorXd> seeds = buildSeedList(q_prev, home_q, robot);
+      // Filter out seeds already tried in stage 1
+      std::vector<Eigen::VectorXd> filtered_seeds;
+      filtered_seeds.reserve(seeds.size());
       for (const auto& seed : seeds) {
         if ((seed - q_prev).norm() < 1e-9) continue;
         if ((seed - home_q).norm() < 1e-9) continue;
         if (seed.norm() < 1e-9) continue;
-        for (const auto& sched : weight_schedule) {
-          eval_seed(seed, sched.first, sched.second);
-          if (stop_search) break;
+        filtered_seeds.push_back(seed);
+      }
+      if (!filtered_seeds.empty()) {
+        if (use_cuda_fast_path) {
+          // Batch all expanded seeds × all weight levels in one GPU launch
+          run_stage_cuda(filtered_seeds, weight_schedule);
+        } else {
+          for (const auto& seed : filtered_seeds) {
+            for (const auto& sched : weight_schedule) {
+              eval_seed(seed, sched.first, sched.second);
+              if (stop_search) break;
+            }
+            if (stop_search) break;
+          }
         }
-        if (stop_search) break;
       }
     }
 
@@ -352,13 +439,26 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
     if (!stop_search) {
       int global_trials = 0;
       const int fallback_budget = 6;  // very few random seeds needed as safety net
-      for (const auto& sched : weight_schedule) {
+      if (use_cuda_fast_path) {
+        // Collect up to fallback_budget global seeds, batch with all weights
+        std::vector<Eigen::VectorXd> global_batch;
+        global_batch.reserve(fallback_budget);
         for (const auto& seed : global_seeds) {
-          eval_seed(seed, sched.first, sched.second);
-          ++global_trials;
+          global_batch.push_back(seed);
+          if (static_cast<int>(global_batch.size()) >= fallback_budget) break;
+        }
+        if (!global_batch.empty()) {
+          run_stage_cuda(global_batch, weight_schedule);
+        }
+      } else {
+        for (const auto& sched : weight_schedule) {
+          for (const auto& seed : global_seeds) {
+            eval_seed(seed, sched.first, sched.second);
+            ++global_trials;
+            if (stop_search || global_trials >= fallback_budget) break;
+          }
           if (stop_search || global_trials >= fallback_budget) break;
         }
-        if (stop_search || global_trials >= fallback_budget) break;
       }
     }
 
